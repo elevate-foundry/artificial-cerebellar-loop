@@ -1802,11 +1802,11 @@ def main():
         if p.api_key and not p._all_models:
             p.discover()
     
-    # Show identity + pool info with tiers
-    pool_info = " · ".join(
-        f"{p.name}: {len(p.get_active_models())}/{p.pool_size} ({p.tier_summary})"
-        for p in PROVIDERS if p.api_key
-    )
+    # Show identity + unified pool info
+    active = [p for p in PROVIDERS if p.api_key]
+    total_active = sum(len(p.get_active_models()) for p in active)
+    total_pool = sum(p.pool_size for p in active)
+    pool_info = f"{total_active}/{total_pool} models active"
     
     decoded = braille_to_text_approx(bbid)
     if combined_agr >= CONVERGENCE_THRESHOLD:
