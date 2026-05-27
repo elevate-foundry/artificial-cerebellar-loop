@@ -898,12 +898,16 @@ def render_favicon(
 def render_convergence_chart(histories: Dict[str, List[float]]) -> None:
     """Display convergence for multiple clusters on one chart."""
     import pandas as pd
-    max_len = max(len(h) for h in histories.values()) if histories else 0
+    # Filter out empty histories to avoid Infinite extent warnings
+    non_empty = {k: v for k, v in histories.items() if v}
+    if not non_empty:
+        return
+    max_len = max(len(h) for h in non_empty.values())
     if max_len == 0:
         return
     data = {"Round": list(range(1, max_len + 1))}
-    for label, hist in histories.items():
-        padded = hist + [hist[-1]] * (max_len - len(hist)) if hist else [0.0] * max_len
+    for label, hist in non_empty.items():
+        padded = hist + [hist[-1]] * (max_len - len(hist))
         data[label] = padded
     df = pd.DataFrame(data)
     st.line_chart(df.set_index("Round"), height=200)
