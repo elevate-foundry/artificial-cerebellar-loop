@@ -605,6 +605,10 @@ async def run_provider_round(
     # Priority order: ✅ first (bright), 🤔 middle, ⚠️/❌ last (faded)
     STATUS_RANK = {"✅": 0, "🤔": 1, "⚠️": 2, "❌": 3}
     
+    # Provider badge for unified display
+    pbadge = "Ⓜ" if provider.name == "Mammouth" else "Ⓞ"
+    pbadge_color = "#ff6b6b" if provider.name == "Mammouth" else "#6bb5ff"
+    
     def render_status():
         if status_placeholder is None:
             return
@@ -620,22 +624,23 @@ async def run_provider_round(
             braille = model_braille_preview.get(m, "")
             # Truncate braille to keep it compact
             braille_display = braille[:12] + ("…" if len(braille) > 12 else "") if braille else ""
+            badge = f'<span style="color:{pbadge_color};font-size:0.8em">{pbadge}</span>'
             
             if s in ("❌", "⚠️"):
                 parts.append(
                     f'<span style="opacity:0.3;font-size:0.85em">'
-                    f'{s} <span style="color:rgb({color[0]},{color[1]},{color[2]})">{tag}</span>'
+                    f'{s} {badge}<span style="color:rgb({color[0]},{color[1]},{color[2]})">{tag}</span>'
                     f'</span>'
                 )
             elif s == "🤔":
                 parts.append(
                     f'<span style="opacity:0.5;font-size:0.85em">'
-                    f'{s} <span style="color:rgb({color[0]},{color[1]},{color[2]})">{tag}</span>'
+                    f'{s} {badge}<span style="color:rgb({color[0]},{color[1]},{color[2]})">{tag}</span>'
                     f'</span>'
                 )
             else:
                 parts.append(
-                    f'<span style="font-size:0.85em">{s} '
+                    f'<span style="font-size:0.85em">{s} {badge}'
                     f'<span style="color:rgb({color[0]},{color[1]},{color[2]})">'
                     f'{tag} {braille_display}</span></span>'
                 )
@@ -1375,19 +1380,23 @@ async def bbid_handshake(name: str, status_container):
         return None, {}, {}, {}
     
     # Discover all available models dynamically
+    total_pool = 0
+    total_squad = 0
     for provider in active_providers:
         if not provider._all_models:
-            count = provider.discover()
-            status_container.caption(
-                f"{provider.name}: {count} models → "
-                f"squad {len(provider.get_active_models())} ({provider.tier_summary}) · "
-                f"bench {len(provider._bench)}"
-            )
+            provider.discover()
+        total_pool += len(provider._all_models)
+        total_squad += len(provider.get_active_models())
+    
+    status_container.caption(
+        f"{total_pool} models discovered → {total_squad} active"
+    )
     
     # Prepare histories and thinking placeholders
     # The initial user message is plaintext (the name to encode).
     # After this, all feedback is braille-native (models decode braille input AND encode output).
     thinking_placeholders = {}
+    status_container.write(f"**{total_squad} models** — encoding...")
     for provider in active_providers:
         models = provider.get_active_models()
         histories = {}
@@ -1397,7 +1406,6 @@ async def bbid_handshake(name: str, status_container):
                 {"role": "user", "content": name}
             ]
         provider_histories[provider.name] = histories
-        status_container.write(f"**{provider.name}** — encoding...")
         thinking_placeholders[provider.name] = status_container.empty()
     
     # Fire all providers in parallel with auto-swap
@@ -1496,7 +1504,7 @@ async def cerebellar_loop(
         for iteration in range(1, MAX_ITERATIONS + 1):
             status_container.write(f"**Round {iteration}** ⚡")
             
-            # Create thinking placeholders per provider
+            # Per-provider placeholders (no provider labels — badges identify them)
             thinking_placeholders = {}
             for provider in active_providers:
                 thinking_placeholders[provider.name] = status_container.empty()
