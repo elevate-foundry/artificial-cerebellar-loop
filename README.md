@@ -1,12 +1,16 @@
-# 🧠 Cerebellar Braille Loop
+# 🧠 Artificial Cerebellar Loop
 
-**Predictive tactile control over a language-conditioned braille stream.**
+**A bio-inspired predictive control architecture for braille decoding, multi-model consensus, and codebook inference.**
 
-A multi-provider, multi-model consensus system that implements an *artificial cerebellar loop* — a novel architecture where AI models communicate exclusively in 8-dot braille Unicode, converge through braided feedback, and jointly infer codebook, text, and encoding strategy without explicit coordination.
+The Artificial Cerebellar Loop (ACL) is an architecture where AI models communicate exclusively in 8-dot braille Unicode, converge through braided feedback, and jointly infer codebook, text, and encoding strategy — without explicit coordination. It draws directly from how the biological cerebellum performs predictive error minimization during tactile sequence processing.
+
+> **Keywords**: artificial cerebellar loop, cerebellar braille loop, predictive coding, braille decoding, multi-model consensus, codebook inference, cerebellar computation, tactile language processing, braille Unicode, sensorimotor language
 
 ## What is an Artificial Cerebellar Loop?
 
-The biological cerebellum is a predictive error minimizer for embodied sequence processing. When a person reads braille, they don't passively receive text — they *actively sample* a surface through a closed-loop control system:
+An **artificial cerebellar loop** is a computational architecture modeled on the biological cerebellum's role as a predictive error minimizer for embodied sequence processing.
+
+When a person reads braille, they don't passively receive text — they *actively sample* a surface through a closed-loop control system:
 
 ```
 touch → prediction → error correction → motor adjustment → better touch
@@ -188,6 +192,14 @@ See [`context.md`](context.md) for the full codebook inference theory:
 - The BBID handshake is a practical implementation of `argmax` over codebooks
 - Each model is a decoder `D_ℓ` — consensus reveals which codebook the ensemble prefers
 
+## Related concepts
+
+- **Predictive coding** — the free energy principle (Friston) applied to tactile inference
+- **Cerebellar computation** — internal models, parallel fibers, climbing fiber error signals
+- **Braille decoding** — codebook ambiguity across languages (UEB, SEB, Deutsche Blindenschrift)
+- **Multi-agent consensus** — emergent agreement without explicit voting protocols
+- **Sensorimotor language** — braille as active sequential cognition, not passive encoding
+
 ## License
 
 MIT
@@ -201,6 +213,7 @@ If you use this work, please cite:
   title={Cerebellar Braille Loop: Predictive Tactile Control over a Language-Conditioned Braille Stream},
   author={Barrett, Ryan},
   year={2025},
+  note={Artificial Cerebellar Loop: bio-inspired predictive control for braille consensus},
   url={https://github.com/elevate-foundry/artificial-cerebellar-loop}
 }
 ```
