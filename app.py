@@ -881,17 +881,35 @@ def render_favicon(
     b64 = base64.b64encode(buffer.getvalue()).decode()
     
     # Inject favicon update via JavaScript
+    # components.html creates: top → streamlit iframe → component iframe
+    # We need to walk up to find the document with <link rel="icon">
     import streamlit.components.v1 as components
     components.html(
         f"""<script>
         (function() {{
-            var link = document.querySelector("link[rel*='icon']");
-            if (!link) {{
-                link = document.createElement('link');
-                link.rel = 'icon';
-                document.head.appendChild(link);
+            var b64 = 'data:image/png;base64,{b64}';
+            // Walk up the window chain to find the favicon
+            var targets = [document, window.parent.document];
+            try {{ targets.push(window.parent.parent.document); }} catch(e) {{}}
+            try {{ targets.push(window.top.document); }} catch(e) {{}}
+            for (var i = 0; i < targets.length; i++) {{
+                try {{
+                    var doc = targets[i];
+                    var links = doc.querySelectorAll("link[rel*='icon']");
+                    if (links.length > 0) {{
+                        for (var j = 0; j < links.length; j++) {{
+                            links[j].type = 'image/png';
+                            links[j].href = b64;
+                        }}
+                    }} else {{
+                        var link = doc.createElement('link');
+                        link.rel = 'icon';
+                        link.type = 'image/png';
+                        link.href = b64;
+                        doc.head.appendChild(link);
+                    }}
+                }} catch(e) {{}}
             }}
-            link.href = 'data:image/png;base64,{b64}';
         }})();
         </script>""",
         height=0,
@@ -1443,8 +1461,9 @@ def save_bbid_to_localstorage(name: str, bbid: str):
     components.html(
         f"""<script>
         (function() {{
-            localStorage.setItem('acbl_name', '{escaped_name}');
-            localStorage.setItem('acbl_bbid', '{escaped_bbid}');
+            var w = window.top || window.parent || window;
+            w.localStorage.setItem('acbl_name', '{escaped_name}');
+            w.localStorage.setItem('acbl_bbid', '{escaped_bbid}');
         }})();
         </script>""",
         height=0,
