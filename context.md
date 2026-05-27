@@ -132,10 +132,10 @@ The cortex generalizes — "cats have four legs." The cerebellum calibrates — 
 Current AI is cortex-only. Transformers generalize but cannot calibrate — they produce approximately correct outputs with no error-driven refinement loop. The aCBL is the cerebellar complement: it takes 16 models' "approximately right" braille and calibrates them into a precise codebook through error-driven consensus.
 
 $$
-\text{Intelligence} \neq \text{generalization alone} \implies \text{AGI} \supset \text{cerebellar calibration loop}
+\text{Intelligence} \neq \text{generalization alone} \implies \text{Intelligence} \supset \text{cerebellar calibration loop}
 $$
 
-The aCBL is not AGI. But it may be the component of AGI that no one else is building — the 80% of the computational budget that current architectures leave on the table.
+The aCBL addresses the 80% of the computational budget that current architectures leave on the table.
 
 ### Observed codebook divergence
 
