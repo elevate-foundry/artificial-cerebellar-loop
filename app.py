@@ -787,26 +787,65 @@ def render_braille_overlay(
     canvas = np.clip(canvas, 0, 255).astype(np.uint8)
     return Image.fromarray(canvas)
 
-def render_favicon(consensus_braille: str, convergence: float = 0.0) -> None:
+def render_favicon(
+    consensus_braille: str,
+    convergence: float = 0.0,
+    model_braille: Dict[str, str] = None,
+    color_map: Dict[str, Tuple] = None,
+) -> None:
     """
-    Render a dynamic favicon from consensus braille.
-    Shows dots filling in as models converge. Injects via JS.
-    Uses first 2 cells (if available) for a recognizable 2×4 + 2×4 = 4×4-ish grid.
+    Render a dynamic favicon from consensus braille with subtractive color mixing.
+    Uses actual provider colors (warm=Mammouth, cool=OpenRouter) — same as the overlay.
+    Dots fill in and colors mix as models converge.
     """
     import base64
     from io import BytesIO
     
     size = 32
-    img = Image.new("RGB", (size, size), (14, 17, 23))  # match app background
-    draw = ImageDraw.Draw(img)
+    # Start with white canvas (subtractive mixing like the main overlay)
+    canvas = np.full((size, size, 3), 255, dtype=np.float64)
     
-    if not consensus_braille:
-        # Empty state — just the dark background
-        pass
-    else:
-        # Render up to 2 cells side by side in 32×32
+    if consensus_braille and model_braille and color_map:
+        # Full subtractive rendering — mini version of render_braille_overlay
         cells_to_show = min(len(consensus_braille), 2)
         cell_w = size // cells_to_show
+        active_models = sum(1 for b in model_braille.values() if b)
+        
+        for model, braille in model_braille.items():
+            if not braille:
+                continue
+            color = color_map.get(model, (128, 128, 128))
+            
+            for cell_idx in range(cells_to_show):
+                if cell_idx >= len(braille):
+                    break
+                ch = braille[cell_idx]
+                if not is_braille_char(ch):
+                    continue
+                dots = braille_to_dots(ch)
+                cx = cell_idx * cell_w
+                
+                for dot_idx, is_on in enumerate(dots):
+                    if not is_on:
+                        continue
+                    row, col = BRAILLE_DOT_POSITIONS[dot_idx]
+                    dx = cx + int((col + 0.5) * cell_w / 2)
+                    dy = int((row + 0.5) * size / 4)
+                    radius = 3
+                    
+                    for py in range(max(0, dy - radius), min(size, dy + radius + 1)):
+                        for px in range(max(0, dx - radius), min(size, dx + radius + 1)):
+                            if (px - dx) ** 2 + (py - dy) ** 2 <= radius ** 2:
+                                subtract = np.array([
+                                    255 - color[0],
+                                    255 - color[1],
+                                    255 - color[2]
+                                ], dtype=np.float64) / active_models
+                                canvas[py, px] -= subtract
+    elif consensus_braille:
+        # Fallback: just render dots in accent color
+        cells_to_show = min(len(consensus_braille), 2)
+        cell_w = size // max(cells_to_show, 1)
         
         for cell_idx in range(cells_to_show):
             ch = consensus_braille[cell_idx]
@@ -819,19 +858,20 @@ def render_favicon(consensus_braille: str, convergence: float = 0.0) -> None:
                 if not is_on:
                     continue
                 row, col = BRAILLE_DOT_POSITIONS[dot_idx]
-                # Map to pixel positions within cell
                 dx = cx + int((col + 0.5) * cell_w / 2)
                 dy = int((row + 0.5) * size / 4)
                 radius = 3
-                
-                # Color: starts red (low conv) → white (full conv)
-                intensity = int(128 + 127 * convergence)
-                color = (intensity, intensity, intensity)
-                
-                draw.ellipse(
-                    [dx - radius, dy - radius, dx + radius, dy + radius],
-                    fill=color
-                )
+                # Warm/cool gradient based on convergence
+                r = int(255 * (1 - convergence) + 100 * convergence)
+                g = int(50 + 150 * convergence)
+                b_val = int(50 + 205 * convergence)
+                for py in range(max(0, dy - radius), min(size, dy + radius + 1)):
+                    for px in range(max(0, dx - radius), min(size, dx + radius + 1)):
+                        if (px - dx) ** 2 + (py - dy) ** 2 <= radius ** 2:
+                            canvas[py, px] = [r, g, b_val]
+    
+    canvas = np.clip(canvas, 0, 255).astype(np.uint8)
+    img = Image.fromarray(canvas)
     
     # Convert to base64 PNG
     buffer = BytesIO()
@@ -1180,9 +1220,9 @@ async def bbid_handshake(name: str, status_container):
     clusters = cluster_codebooks(all_model_braille)
     render_codebook_map(all_model_braille, all_colors, clusters, name=name)
     
-    # Set favicon to BBID consensus
+    # Set favicon to BBID consensus with actual colors
     if combined_bbid:
-        render_favicon(combined_bbid, combined_conv)
+        render_favicon(combined_bbid, combined_conv, all_model_braille, all_colors)
     
     return combined_bbid, {
         **agreement_per_provider,
@@ -1334,11 +1374,11 @@ async def cerebellar_loop(
             combined_overlay = render_braille_overlay(all_model_braille, all_colors)
             st.image(combined_overlay)
             
-            # ─── Dynamic favicon: shows consensus dots filling in ─────────
-            all_valid_braille = [b for b in all_model_braille.values() if b]
-            if all_valid_braille:
-                current_consensus = compute_majority_consensus(all_valid_braille)
-                render_favicon(current_consensus, combined_conv)
+            # ─── Dynamic favicon: shows consensus dots filling in with colors ──
+            all_valid_braille_fav = [b for b in all_model_braille.values() if b]
+            if all_valid_braille_fav:
+                current_consensus = compute_majority_consensus(all_valid_braille_fav)
+                render_favicon(current_consensus, combined_conv, all_model_braille, all_colors)
             
             # ─── Termination ─────────────────────────────────────────────
             if combined_conv >= CONVERGENCE_THRESHOLD:
