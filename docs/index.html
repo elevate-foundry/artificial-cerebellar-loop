@@ -3,20 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Artificial Cerebellar Loop — Bio-Inspired Predictive Control for Braille Consensus</title>
-  <meta name="description" content="The Artificial Cerebellar Loop (ACL) is a bio-inspired architecture where AI models communicate in 8-dot braille Unicode, converge through braided feedback, and jointly infer codebook and encoding strategy.">
-  <meta name="keywords" content="artificial cerebellar loop, cerebellar braille loop, predictive coding, braille decoding, multi-model consensus, codebook inference, cerebellar computation, sensorimotor language">
+  <title>aCBL — artificial Cerebellar Braille Loop</title>
+  <meta name="description" content="The artificial Cerebellar Braille Loop (aCBL) is a bio-inspired architecture where AI models communicate in 8-dot braille Unicode, converge through braided feedback, and jointly infer codebook and encoding strategy.">
+  <meta name="keywords" content="artificial cerebellar braille loop, aCBL, cerebellar braille loop, predictive coding, braille decoding, multi-model consensus, codebook inference, cerebellar computation, sensorimotor language">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
   <meta name="author" content="Ryan Barrett">
 
   <!-- Open Graph -->
-  <meta property="og:title" content="Artificial Cerebellar Loop">
+  <meta property="og:title" content="aCBL — artificial Cerebellar Braille Loop">
   <meta property="og:description" content="Bio-inspired predictive control architecture for braille decoding, multi-model consensus, and codebook inference.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://elevate-foundry.github.io/artificial-cerebellar-loop/">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Artificial Cerebellar Loop">
+  <meta name="twitter:title" content="aCBL — artificial Cerebellar Braille Loop">
   <meta name="twitter:description" content="AI models communicate in braille, converge through cerebellar feedback, and jointly infer codebook and encoding strategy.">
 
   <!-- Schema.org structured data for GEO -->
@@ -24,7 +25,7 @@
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "Artificial Cerebellar Loop",
+    "name": "artificial Cerebellar Braille Loop (aCBL)",
     "description": "A bio-inspired predictive control architecture where AI models communicate exclusively in 8-dot braille Unicode, converge through braided feedback, and jointly infer codebook, text, and encoding strategy.",
     "applicationCategory": "Artificial Intelligence",
     "operatingSystem": "Cross-platform",
@@ -34,7 +35,7 @@
     },
     "codeRepository": "https://github.com/elevate-foundry/artificial-cerebellar-loop",
     "programmingLanguage": "Python",
-    "keywords": "artificial cerebellar loop, cerebellar computation, braille, predictive coding, multi-model consensus, codebook inference"
+    "keywords": "artificial cerebellar braille loop, aCBL, cerebellar computation, braille, predictive coding, multi-model consensus, codebook inference"
   }
   </script>
 
@@ -51,6 +52,18 @@
       justify-content: center;
       padding: 2rem;
     }
+    nav {
+      max-width: 720px;
+      margin: 0 auto 1rem;
+      padding-bottom: 0.8rem;
+      border-bottom: 1px solid #222;
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+    }
+    nav a { color: #888; text-decoration: none; font-size: 0.85rem; transition: color 0.2s; }
+    nav a:hover { color: #ff6b6b; }
+    nav .brand { font-size: 1.1rem; color: #ccc; }
     .container { max-width: 720px; text-align: center; }
     h1 { font-size: 2.4rem; margin-bottom: 0.5rem; }
     .subtitle {
@@ -122,6 +135,13 @@
   </style>
 </head>
 <body>
+  <nav>
+    <span class="brand">🧠 aCBL</span>
+    <a href="index.html" style="color:#ff6b6b;">Home</a>
+    <a href="theory.html">Theory</a>
+    <a href="https://github.com/elevate-foundry/artificial-cerebellar-loop">GitHub</a>
+    <a href="https://artificial-cerebellar-loop.streamlit.app/">Try it live</a>
+  </nav>
   <div class="container">
     <h1>🧠 Artificial Cerebellar Loop</h1>
     <p class="subtitle">
@@ -156,8 +176,9 @@
     </div>
 
     <div class="buttons">
-      <a href="https://github.com/elevate-foundry/artificial-cerebellar-loop" class="btn btn-primary">GitHub</a>
-      <a href="https://github.com/elevate-foundry/artificial-cerebellar-loop/blob/main/context.md" class="btn btn-secondary">Theory</a>
+      <a href="https://artificial-cerebellar-loop.streamlit.app/" class="btn btn-primary">Try it live</a>
+      <a href="theory.html" class="btn btn-secondary">Theory</a>
+      <a href="https://github.com/elevate-foundry/artificial-cerebellar-loop" class="btn btn-secondary">GitHub</a>
     </div>
 
     <p class="cite">
