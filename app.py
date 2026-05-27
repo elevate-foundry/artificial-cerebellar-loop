@@ -323,6 +323,95 @@ CONVERGENCE_THRESHOLD = 0.95  # 95% dot agreement = consensus
 PLATEAU_WINDOW = 3            # If convergence doesn't improve for this many rounds, declare disagreement
 PLATEAU_EPSILON = 0.02        # Minimum improvement to count as "still converging"
 
+# ─── Cost Tracking & Caps ──────────────────────────────────────────────────────
+
+SESSION_COST_CAP = float(os.environ.get("SESSION_COST_CAP", "0.50"))  # $ per session
+DAILY_COST_CAP = float(os.environ.get("DAILY_COST_CAP", "5.00"))      # $ per day across all sessions
+
+# Rough pricing per 1M tokens (defaults, overridden per-model when available)
+DEFAULT_INPUT_COST_PER_M = 0.50   # $/1M input tokens
+DEFAULT_OUTPUT_COST_PER_M = 1.50  # $/1M output tokens
+
+class TokenTracker:
+    """Track token usage and estimated costs across API calls."""
+    
+    def __init__(self):
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+        self.total_cost = 0.0
+        self.calls = 0
+        self.per_provider = {}  # {provider_name: {input, output, cost, calls}}
+    
+    def record(self, provider_name: str, input_tokens: int, output_tokens: int,
+               input_cost_per_m: float = DEFAULT_INPUT_COST_PER_M,
+               output_cost_per_m: float = DEFAULT_OUTPUT_COST_PER_M):
+        cost = (input_tokens * input_cost_per_m + output_tokens * output_cost_per_m) / 1_000_000
+        self.total_input_tokens += input_tokens
+        self.total_output_tokens += output_tokens
+        self.total_cost += cost
+        self.calls += 1
+        
+        if provider_name not in self.per_provider:
+            self.per_provider[provider_name] = {
+                "input_tokens": 0, "output_tokens": 0, "cost": 0.0, "calls": 0
+            }
+        p = self.per_provider[provider_name]
+        p["input_tokens"] += input_tokens
+        p["output_tokens"] += output_tokens
+        p["cost"] += cost
+        p["calls"] += 1
+    
+    def exceeds_session_cap(self) -> bool:
+        return self.total_cost >= SESSION_COST_CAP
+    
+    def summary(self) -> str:
+        return (
+            f"{self.total_input_tokens:,} in · {self.total_output_tokens:,} out · "
+            f"${self.total_cost:.4f} · {self.calls} calls"
+        )
+    
+    def provider_summary(self) -> str:
+        parts = []
+        for pname, data in self.per_provider.items():
+            parts.append(
+                f"{pname}: {data['input_tokens']:,}+{data['output_tokens']:,} tok · "
+                f"${data['cost']:.4f} · {data['calls']} calls"
+            )
+        return " | ".join(parts)
+
+# Daily cost tracker (persists across sessions via st.cache_resource)
+@st.cache_resource
+def get_daily_tracker() -> Dict:
+    return {"date": datetime.now(timezone.utc).date().isoformat(), "cost": 0.0}
+
+def check_daily_cap(additional_cost: float = 0.0) -> bool:
+    """Returns True if daily cap would be exceeded."""
+    tracker = get_daily_tracker()
+    today = datetime.now(timezone.utc).date().isoformat()
+    if tracker["date"] != today:
+        tracker["date"] = today
+        tracker["cost"] = 0.0
+    return (tracker["cost"] + additional_cost) >= DAILY_COST_CAP
+
+def record_daily_cost(cost: float):
+    tracker = get_daily_tracker()
+    today = datetime.now(timezone.utc).date().isoformat()
+    if tracker["date"] != today:
+        tracker["date"] = today
+        tracker["cost"] = 0.0
+    tracker["cost"] += cost
+
+def record_results_tokens(results: List[Dict], tracker: 'TokenTracker'):
+    """Record token usage from a batch of model results into the tracker."""
+    for r in results:
+        if r.get("success"):
+            tracker.record(
+                r.get("provider", "unknown"),
+                r.get("input_tokens", 0),
+                r.get("output_tokens", 0),
+            )
+    record_daily_cost(tracker.total_cost)
+
 # ─── Braille ↔ ASCII Codec ─────────────────────────────────────────────────────
 
 def ascii_to_braille(text: str) -> str:
@@ -553,6 +642,8 @@ async def call_model_braille(
                     }
                 raw = choices[0]["message"].get("content") or ""
                 is_valid, braille, purity = validate_braille_response(raw)
+                # Extract token usage
+                usage = data.get("usage") or {}
                 return {
                     "model": model,
                     "provider": provider.name,
@@ -560,7 +651,9 @@ async def call_model_braille(
                     "braille": braille,
                     "is_valid_braille": is_valid,
                     "purity": purity,
-                    "success": True
+                    "success": True,
+                    "input_tokens": usage.get("prompt_tokens", 0),
+                    "output_tokens": usage.get("completion_tokens", 0),
                 }
             else:
                 error_text = await response.text()
@@ -1367,7 +1460,7 @@ def apply_feedback(
                     model_histories[model][-12:]
                 )
 
-async def bbid_handshake(name: str, status_container):
+async def bbid_handshake(name: str, status_container, tracker: TokenTracker = None):
     """
     BBID Handshake across all providers.
     Returns per-provider BBIDs, combined BBID, and model histories.
@@ -1421,6 +1514,8 @@ async def bbid_handshake(name: str, status_container):
         gathered = await asyncio.gather(*tasks)
         for provider, results in zip(active_providers, gathered):
             provider_results[provider.name] = results
+            if tracker:
+                record_results_tokens(results, tracker)
     
     # Per-provider consensus
     bbid_per_provider = {}
@@ -1479,7 +1574,8 @@ async def bbid_handshake(name: str, status_container):
 async def cerebellar_loop(
     prompt: str,
     provider_histories: Dict[str, Dict[str, List[Dict]]],
-    status_container
+    status_container,
+    tracker: TokenTracker = None
 ):
     """
     Multi-provider cerebellar loop.
@@ -1523,6 +1619,15 @@ async def cerebellar_loop(
             gathered = await asyncio.gather(*[t for _, t in all_tasks])
             for (provider, _), results in zip(all_tasks, gathered):
                 provider_results[provider.name] = results
+                if tracker:
+                    record_results_tokens(results, tracker)
+            
+            # Check session cost cap
+            if tracker and tracker.exceeds_session_cap():
+                status_container.warning(
+                    f"⚠️ Session cost cap reached (${tracker.total_cost:.4f} ≥ ${SESSION_COST_CAP}). Stopping."
+                )
+                break
             
             # Per-provider convergence
             round_data = {"iteration": iteration, "providers": {}}
@@ -1753,6 +1858,9 @@ def main():
         if key not in st.session_state:
             st.session_state[key] = default
     
+    if "token_tracker" not in st.session_state:
+        st.session_state.token_tracker = TokenTracker()
+    
     # ─── Show BBID Registry to all visitors ─────────────────────────────
     render_bbid_registry()
     
@@ -1766,10 +1874,17 @@ def main():
                 return
             
             name = name_input.strip()
+            tracker = st.session_state.token_tracker
+            
+            # Check daily cap before starting
+            if check_daily_cap():
+                st.error(f"⚠️ Daily cost cap reached (${DAILY_COST_CAP}). Try again tomorrow.")
+                return
+            
             status = st.container()
             
             combined_bbid, agreements, provider_histories, bbid_per_provider, model_braille = \
-                asyncio.run(bbid_handshake(name, status))
+                asyncio.run(bbid_handshake(name, status, tracker=tracker))
             
             if combined_bbid:
                 st.session_state.user_name = name
@@ -1848,6 +1963,16 @@ def main():
                     t = f"{r['response_time']:.1f}s" if r["response_time"] else ""
                     st.caption(f"  {dot} {r['model']} {t}")
     
+    # ─── Cost Tracker ─────────────────────────────────────────────────────
+    tracker = st.session_state.token_tracker
+    if tracker.calls > 0:
+        daily = get_daily_tracker()
+        st.caption(
+            f"💰 Session: {tracker.summary()} · "
+            f"Daily: ${daily['cost']:.4f}/${DAILY_COST_CAP} · "
+            f"Cap: ${SESSION_COST_CAP}/session"
+        )
+    
     # ─── Prompt ──────────────────────────────────────────────────────────
     col_prompt, col_mode = st.columns([4, 1])
     with col_prompt:
@@ -1886,8 +2011,15 @@ def main():
                             {"role": "system", "content": sys_prompt},
                         ]
         
+        tracker = st.session_state.token_tracker
+        
+        # Check daily cap before starting
+        if check_daily_cap():
+            st.error(f"⚠️ Daily cost cap reached (${DAILY_COST_CAP}). Try again tomorrow.")
+            return
+        
         all_rounds, conv_histories, outcome = asyncio.run(
-            cerebellar_loop(prompt, provider_histories, status)
+            cerebellar_loop(prompt, provider_histories, status, tracker=tracker)
         )
         
         st.session_state.provider_histories = provider_histories
