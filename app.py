@@ -787,6 +787,74 @@ def render_braille_overlay(
     canvas = np.clip(canvas, 0, 255).astype(np.uint8)
     return Image.fromarray(canvas)
 
+def render_favicon(consensus_braille: str, convergence: float = 0.0) -> None:
+    """
+    Render a dynamic favicon from consensus braille.
+    Shows dots filling in as models converge. Injects via JS.
+    Uses first 2 cells (if available) for a recognizable 2×4 + 2×4 = 4×4-ish grid.
+    """
+    import base64
+    from io import BytesIO
+    
+    size = 32
+    img = Image.new("RGB", (size, size), (14, 17, 23))  # match app background
+    draw = ImageDraw.Draw(img)
+    
+    if not consensus_braille:
+        # Empty state — just the dark background
+        pass
+    else:
+        # Render up to 2 cells side by side in 32×32
+        cells_to_show = min(len(consensus_braille), 2)
+        cell_w = size // cells_to_show
+        
+        for cell_idx in range(cells_to_show):
+            ch = consensus_braille[cell_idx]
+            if not is_braille_char(ch):
+                continue
+            dots = braille_to_dots(ch)
+            cx = cell_idx * cell_w
+            
+            for dot_idx, is_on in enumerate(dots):
+                if not is_on:
+                    continue
+                row, col = BRAILLE_DOT_POSITIONS[dot_idx]
+                # Map to pixel positions within cell
+                dx = cx + int((col + 0.5) * cell_w / 2)
+                dy = int((row + 0.5) * size / 4)
+                radius = 3
+                
+                # Color: starts red (low conv) → white (full conv)
+                intensity = int(128 + 127 * convergence)
+                color = (intensity, intensity, intensity)
+                
+                draw.ellipse(
+                    [dx - radius, dy - radius, dx + radius, dy + radius],
+                    fill=color
+                )
+    
+    # Convert to base64 PNG
+    buffer = BytesIO()
+    img.save(buffer, format="PNG")
+    b64 = base64.b64encode(buffer.getvalue()).decode()
+    
+    # Inject favicon update via JavaScript
+    import streamlit.components.v1 as components
+    components.html(
+        f"""<script>
+        (function() {{
+            var link = document.querySelector("link[rel*='icon']");
+            if (!link) {{
+                link = document.createElement('link');
+                link.rel = 'icon';
+                document.head.appendChild(link);
+            }}
+            link.href = 'data:image/png;base64,{b64}';
+        }})();
+        </script>""",
+        height=0,
+    )
+
 def render_convergence_chart(histories: Dict[str, List[float]]) -> None:
     """Display convergence for multiple clusters on one chart."""
     import pandas as pd
@@ -1112,6 +1180,10 @@ async def bbid_handshake(name: str, status_container):
     clusters = cluster_codebooks(all_model_braille)
     render_codebook_map(all_model_braille, all_colors, clusters, name=name)
     
+    # Set favicon to BBID consensus
+    if combined_bbid:
+        render_favicon(combined_bbid, combined_conv)
+    
     return combined_bbid, {
         **agreement_per_provider,
         "combined": combined_conv,
@@ -1261,6 +1333,12 @@ async def cerebellar_loop(
             # Combined overlay
             combined_overlay = render_braille_overlay(all_model_braille, all_colors)
             st.image(combined_overlay)
+            
+            # ─── Dynamic favicon: shows consensus dots filling in ─────────
+            all_valid_braille = [b for b in all_model_braille.values() if b]
+            if all_valid_braille:
+                current_consensus = compute_majority_consensus(all_valid_braille)
+                render_favicon(current_consensus, combined_conv)
             
             # ─── Termination ─────────────────────────────────────────────
             if combined_conv >= CONVERGENCE_THRESHOLD:
