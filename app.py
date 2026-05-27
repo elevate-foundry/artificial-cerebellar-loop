@@ -1190,11 +1190,6 @@ async def bbid_handshake(name: str, status_container):
         valid = [b for b in mb.values() if b]
         conv = compute_convergence(valid) if len(valid) >= 2 else 0.0
         
-        colors = get_provider_colors(provider, list(mb.keys()))
-        overlay = render_braille_overlay(mb, colors)
-        status_container.write(f"**{pname}** — {vc}/{len(mb)} responded · {conv:.0%}")
-        status_container.image(overlay)
-        
         if valid:
             bbid_per_provider[pname] = compute_majority_consensus(valid)
             all_valid_braille.extend(valid)
@@ -1208,7 +1203,7 @@ async def bbid_handshake(name: str, status_container):
                     {"role": "assistant", "content": r["braille"]}
                 )
     
-    # Combined consensus
+    # Unified cross-provider display
     combined_conv = compute_convergence(all_valid_braille) if len(all_valid_braille) >= 2 else 0.0
     combined_bbid = compute_majority_consensus(all_valid_braille) if all_valid_braille else ""
     
@@ -1216,10 +1211,13 @@ async def bbid_handshake(name: str, status_container):
         {pname: list(provider_histories[pname].keys()) for pname in provider_histories}
     )
     combined_overlay = render_braille_overlay(all_model_braille, all_colors)
-    status_container.write(f"**Combined** — {combined_conv:.0%} agreement")
+    
+    total_valid = sum(1 for b in all_model_braille.values() if b)
+    total_models = len(all_model_braille)
+    status_container.write(f"**{total_valid}/{total_models} models** — {combined_conv:.0%} agreement")
     status_container.image(combined_overlay)
     
-    # Codebook analysis — cluster models by encoding strategy
+    # Cross-provider codebook analysis with badges
     clusters = cluster_codebooks(all_model_braille)
     render_codebook_map(all_model_braille, all_colors, clusters, name=name)
     
@@ -1566,11 +1564,6 @@ def main():
         st.success(f"BBID verified by consensus ({combined_agr:.0%}): `{bbid}` → {decoded}")
     else:
         st.info(f"BBID by majority ({combined_agr:.0%}): `{bbid}` → {decoded}")
-    
-    # Per-provider BBIDs
-    for pname, pbbid in bbid_per_provider.items():
-        pagr = agreements.get(pname, 0)
-        st.caption(f"{outcome_icon(pagr)} {pname}: `{pbbid}` ({pagr:.0%})")
     
     st.caption(f"Models: {pool_info}")
     
