@@ -2,9 +2,9 @@
 
 **A bio-inspired predictive control architecture for braille decoding, multi-model consensus, and codebook inference.**
 
-The Cerebellar Braille Loop (CBL) is an architecture where AI models communicate exclusively in 8-dot braille Unicode, converge through braided feedback, and jointly infer codebook, text, and encoding strategy — without explicit coordination. It draws directly from how the biological cerebellum performs predictive error minimization during tactile sequence processing.
+The artificial Cerebellar Braille Loop (aCBL) is an architecture where AI models communicate exclusively in 8-dot braille Unicode, converge through braided feedback, and jointly infer codebook, text, and encoding strategy — without explicit coordination. It draws directly from how the biological cerebellum performs predictive error minimization during tactile sequence processing.
 
-> **Keywords**: artificial cerebellar loop, cerebellar braille loop, predictive coding, braille decoding, multi-model consensus, codebook inference, cerebellar computation, tactile language processing, braille Unicode, sensorimotor language
+> **Keywords**: artificial cerebellar braille loop, aCBL, cerebellar braille loop, predictive coding, braille decoding, multi-model consensus, codebook inference, cerebellar computation, tactile language processing, braille Unicode, sensorimotor language
 
 ## What is an Artificial Cerebellar Loop?
 

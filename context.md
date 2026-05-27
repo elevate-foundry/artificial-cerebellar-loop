@@ -43,9 +43,9 @@ $$
 
 The codebook $D_\ell^{(8)}$ is not simply $D_\ell^{(6)}$ with two extra bits. It is a **different codebook family** — the mapping from cells to characters changes, the mode structure collapses, and the prior $P(\ell)$ shifts because 8-dot braille is predominantly used in computing contexts where language-specific literary conventions are less relevant.
 
-### Why this matters for the artificial cerebellar loop
+### Why this matters for the aCBL
 
-The CBL operates in 8-dot Unicode braille. When models disagree on encoding strategy, the divergence is specifically about how to use the expanded $2^8$ cell space:
+The aCBL (artificial Cerebellar Braille Loop) operates in 8-dot Unicode braille. When models disagree on encoding strategy, the divergence is specifically about how to use the expanded $2^8$ cell space:
 
 - Some models use dots 7–8 for case (capital indicator in dot 7)
 - Some prepend a grade-1 indicator (`⠰`) before the name — a 6-dot convention carried into 8-dot
