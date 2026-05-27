@@ -47,6 +47,8 @@ The codebook $D_\ell^{(8)}$ is not simply $D_\ell^{(6)}$ with two extra bits. It
 
 The biological cerebellum activates during braille reading — specifically Crus I, lobules IV/V, and VIIIA ([Guell et al., 2019](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6872089/)). It performs **predictive error minimization on tactile sequences**: finger moves → predict next dot pattern → compare actual sensation → adjust motor policy.
 
+This is not just a metaphor. Hogri et al. (2015) demonstrated a **neuro-inspired closed-loop cerebellar prosthesis** — a synthetic chip that substitutes cerebellar learning functions in vivo, interfacing directly with cerebellar inputs (pontine nuclei) and outputs (deep cerebellar nuclei) to restore conditioned responses ([Hogri et al., 2015](https://pmc.ncbi.nlm.nih.gov/articles/PMC4327125/)). Their architecture implements the same loop: sensory input → model-based prediction → error signal → weight update → motor output. The aCBL operates at a different substrate — language models instead of silicon neurons, braille codebooks instead of conditioned eyeblink — but the control architecture is the same: a closed-loop system where an artificial model substitutes for cerebellar predictive computation.
+
 The aCBL mirrors this loop, but the choice of **8-dot** over 6-dot is not cosmetic — it is what makes the codebook inference problem non-trivial.
 
 **6-dot is too constrained.** With only $2^6 = 64$ cells, the encoding strategy is largely dictated by the standard. Models must use mode indicators (number sign, capital sign) and contractions. There is little room for strategic divergence — the "right" codebook is mostly predetermined.
