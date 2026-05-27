@@ -865,7 +865,7 @@ def render_codebook_map(
 ) -> None:
     """
     Render the codebook divergence visualization.
-    Shows: which models converged on which encoding, with the Bayesian framework.
+    Models ordered by similarity within clusters, with provider badges (Ⓜ/Ⓞ).
     """
     if not clusters:
         return
@@ -892,20 +892,39 @@ def render_codebook_map(
         cluster_consensus = compute_majority_consensus(valid_in_cluster) if valid_in_cluster else ""
         cluster_decoded = braille_to_text_approx(cluster_consensus) if cluster_consensus else "?"
         
-        # Build the model pills for this cluster
+        # Sort models within cluster by similarity to cluster consensus
+        if cluster_consensus:
+            cluster_sorted = sorted(
+                cluster,
+                key=lambda m: pairwise_dot_similarity(
+                    model_braille.get(m, ""), cluster_consensus
+                ),
+                reverse=True
+            )
+        else:
+            cluster_sorted = cluster
+        
+        # Build the model pills with provider badges
         pills = []
-        for m in cluster:
+        for m in cluster_sorted:
             color = color_map.get(m, (128, 128, 128))
             short = m.split("/")[-1] if "/" in m else m
-            # Truncate long names
-            if len(short) > 20:
-                short = short[:18] + "…"
+            if len(short) > 18:
+                short = short[:16] + "…"
+            # Detect provider from model name or color heuristic
+            is_mammouth = any(
+                m in (p._active + p._bench)
+                for p in PROVIDERS if p.name == "Mammouth"
+            )
+            badge = "Ⓜ" if is_mammouth else "Ⓞ"
+            badge_color = "#ff6b6b" if is_mammouth else "#6bb5ff"
             pills.append(
                 f'<span style="display:inline-block;padding:2px 8px;margin:2px;'
                 f'border-radius:12px;font-size:0.75em;'
-                f'background:rgba({color[0]},{color[1]},{color[2]},0.2);'
-                f'border:1px solid rgba({color[0]},{color[1]},{color[2]},0.6);'
-                f'color:rgb({max(0,color[0]-40)},{max(0,color[1]-40)},{max(0,color[2]-40)})">'
+                f'background:rgba({color[0]},{color[1]},{color[2]},0.15);'
+                f'border:1px solid rgba({color[0]},{color[1]},{color[2]},0.5);'
+                f'color:rgb({color[0]},{color[1]},{color[2]})">'
+                f'<span style="color:{badge_color};font-size:0.85em">{badge}</span> '
                 f'{short}</span>'
             )
         
@@ -1176,28 +1195,72 @@ async def cerebellar_loop(
             round_data["combined_convergence"] = combined_conv
             all_rounds.append(round_data)
             
-            # Display per-provider overlays side by side
-            cols = st.columns(len(active_providers) + 1)
-            for idx, provider in enumerate(active_providers):
-                pname = provider.name
-                pd_data = round_data["providers"][pname]
-                colors = get_provider_colors(
-                    provider, list(pd_data["model_braille"].keys())
-                )
-                overlay = render_braille_overlay(pd_data["model_braille"], colors)
-                with cols[idx]:
-                    st.caption(f"{pname}: {pd_data['convergence']:.0%}")
-                    st.image(overlay)
-            
-            # Combined overlay in last column
+            # ─── Real-time cross-provider clustering ─────────────────────
+            # Cluster ALL models (across providers) by dot-level similarity
             all_colors = get_all_model_colors(
                 {p.name: list(round_data["providers"][p.name]["model_braille"].keys())
                  for p in active_providers}
             )
+            
+            # Run k-means clustering across all providers each round
+            clusters = cluster_codebooks(all_model_braille, threshold=0.85)
+            n_clusters = len(clusters)
+            
+            # Map model → provider for badge display
+            model_provider_map = {}
+            for provider in active_providers:
+                pname = provider.name
+                for m in round_data["providers"][pname]["model_braille"]:
+                    model_provider_map[m] = pname
+            
+            # Render clusters with models ordered by similarity, provider badges
+            cluster_html_parts = []
+            for ci, cluster in enumerate(clusters):
+                is_dominant = ci == 0
+                valid_in = [all_model_braille[m] for m in cluster if all_model_braille.get(m)]
+                cluster_conv = compute_convergence(valid_in) if len(valid_in) >= 2 else 0.0
+                
+                pills = []
+                for m in cluster:
+                    color = all_colors.get(m, (128, 128, 128))
+                    pname = model_provider_map.get(m, "?")
+                    # Provider badge: M for Mammouth, O for OpenRouter
+                    badge = "Ⓜ" if pname == "Mammouth" else "Ⓞ"
+                    badge_color = "#ff6b6b" if pname == "Mammouth" else "#6bb5ff"
+                    short = m.split("/")[-1] if "/" in m else m
+                    if len(short) > 18:
+                        short = short[:16] + "…"
+                    pills.append(
+                        f'<span style="display:inline-block;padding:2px 6px;margin:2px;'
+                        f'border-radius:12px;font-size:0.72em;'
+                        f'background:rgba({color[0]},{color[1]},{color[2]},0.15);'
+                        f'border:1px solid rgba({color[0]},{color[1]},{color[2]},0.5);'
+                        f'color:rgb({color[0]},{color[1]},{color[2]})">'
+                        f'<span style="color:{badge_color};font-size:0.9em">{badge}</span> '
+                        f'{short}</span>'
+                    )
+                
+                border = "rgba(100,200,100,0.8)" if is_dominant else "rgba(100,100,100,0.3)"
+                cluster_html_parts.append(
+                    f'<div style="border:1px solid {border};border-radius:6px;'
+                    f'padding:6px 10px;margin:4px 0;'
+                    f'background:rgba(50,50,50,0.{"08" if is_dominant else "03"})">'
+                    f'<span style="font-size:0.7em;opacity:0.6">'
+                    f'Cluster {ci+1} · {cluster_conv:.0%} · {len(cluster)} models</span><br>'
+                    f'{"".join(pills)}</div>'
+                )
+            
+            st.markdown(
+                f'<div style="font-size:0.75em;opacity:0.5;margin-bottom:2px">'
+                f'Round {iteration} · {n_clusters} codebook{"s" if n_clusters != 1 else ""} · '
+                f'Combined {combined_conv:.0%}</div>'
+                + "".join(cluster_html_parts),
+                unsafe_allow_html=True
+            )
+            
+            # Combined overlay
             combined_overlay = render_braille_overlay(all_model_braille, all_colors)
-            with cols[-1]:
-                st.caption(f"Combined: {combined_conv:.0%}")
-                st.image(combined_overlay)
+            st.image(combined_overlay)
             
             # ─── Termination ─────────────────────────────────────────────
             if combined_conv >= CONVERGENCE_THRESHOLD:
