@@ -11,13 +11,54 @@ $$
 The six-dot braille cell is only a physical/bit substrate:
 
 $$
-b \in \{0,1\}^6
+b_6 \in \{0,1\}^6
 $$
 
-The interpretation is a function:
+But braille Unicode (U+2800–U+28FF) uses **eight dots**, expanding the cell to:
 
 $$
-D_\ell : \mathbb{B}^{6*} \to \Sigma_\ell^*
+b_8 \in \{0,1\}^8
+$$
+
+This is not merely a larger encoding — it changes the structure of the codebook inference problem.
+
+### 6-dot vs 8-dot
+
+| Property | 6-dot | 8-dot |
+|---|---|---|
+| Cell space | $2^6 = 64$ | $2^8 = 256$ |
+| Standards | UEB, SEB, Deutsche Blindenschrift | Computer braille, Unicode braille |
+| Mode switching | Required (capital, number, letter modes) | Reduced or eliminated |
+| State machine | $q_t = (\ell_t, \text{mode}_t)$ — complex | $q_t \approx \ell_t$ — simpler |
+| Contraction ambiguity | High — cells overloaded by mode | Lower — more cells available |
+| Codebook families | Literary braille codes | Computer/Unicode braille codes |
+
+In 6-dot braille, a single cell like `⠼` might mean "number follows" — it is a **mode indicator**, not content. The same cell has no such role in 8-dot computer braille, where dots 7 and 8 directly encode case and type information.
+
+The decoder generalizes to:
+
+$$
+D_\ell^{(n)} : \mathbb{B}^{n*} \to \Sigma_\ell^* \quad \text{where } n \in \{6, 8\}
+$$
+
+The codebook $D_\ell^{(8)}$ is not simply $D_\ell^{(6)}$ with two extra bits. It is a **different codebook family** — the mapping from cells to characters changes, the mode structure collapses, and the prior $P(\ell)$ shifts because 8-dot braille is predominantly used in computing contexts where language-specific literary conventions are less relevant.
+
+### Why this matters for the artificial cerebellar loop
+
+The ACL operates in 8-dot Unicode braille. When models disagree on encoding strategy, the divergence is specifically about how to use the expanded $2^8$ cell space:
+
+- Some models use dots 7–8 for case (capital indicator in dot 7)
+- Some prepend a grade-1 indicator (`⠰`) before the name — a 6-dot convention carried into 8-dot
+- Some ignore dots 7–8 entirely and produce 6-dot-compatible output
+
+These are distinct codebooks within the 8-dot family. The codebook clustering in the BBID handshake detects exactly this: which models chose which strategy for the expanded cell space.
+
+### The interpretation function
+
+For both cell sizes, the interpretation is a function:
+
+$$
+D_\ell^{(n)} : \mathbb{B}^{n*} \to \Sigma_\ell^*
 $$
 
 where:
