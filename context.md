@@ -93,6 +93,50 @@ No existing AI system has this property:
 
 The unified architecture would be the first system where **touch is guided by understanding and understanding is grounded in touch** — a closed sensorimotor-semantic loop with a shared cerebellar controller at both levels.
 
+### Granule cells and k-means: the same operation
+
+The cerebellum's computational core is the **granule cell layer** — ~69 billion neurons, roughly 80% of all neurons in the brain. Their function is pattern separation: they take a relatively low-dimensional input (mossy fibers from pontine nuclei) and project it into an enormously high-dimensional sparse representation, making similar inputs distinguishable so that Purkinje cells can learn precise input-output mappings.
+
+The aCBL's codebook clustering performs a structurally analogous operation using **k-means** on dot-level similarity:
+
+| Cerebellar microcircuit | aCBL |
+|---|---|
+| Mossy fiber inputs | Raw braille outputs from 16 models |
+| Granule cell expansion | Dot-level feature extraction (8 binary dots per cell → pairwise similarity matrix) |
+| Purkinje cell classification | K-means clustering → discovered codebook families |
+| Climbing fiber error signal | Divergence between clusters (inter-cluster distance) |
+| Learned motor output | Consensus BBID |
+
+The parallel is not superficial. Both systems solve the same problem: given multiple noisy representations of the same underlying signal, **separate them into distinct strategies and select the best one through error-driven feedback**.
+
+The cerebellar microcircuit is famously uniform — the same small circuit repeated across the entire structure. Its power comes not from architectural complexity but from **scale × repetition × error signal**. K-means is similarly simple. It is the repetition (iterative reassignment) and the error signal (within-cluster variance) that produce structure from noise.
+
+#### Current limitation and future direction
+
+In the current aCBL, k-means runs **once** after the handshake completes — it clusters the final braille outputs. The biological cerebellum runs its pattern separation **continuously**, updating with every error signal.
+
+A more cerebellar implementation would re-cluster after each feedback round and use **cluster migration** as an additional convergence signal:
+
+$$
+\Delta_t = \sum_{m} \mathbb{1}[c_t(m) \neq c_{t-1}(m)]
+$$
+
+where $c_t(m)$ is the cluster assignment of model $m$ at round $t$. When $\Delta_t = 0$ — no model changes cluster — the codebook structure has stabilized. This is analogous to the point where cerebellar prediction error drops below threshold and the motor program is "learned."
+
+### The 80/20 split: calibration vs generalization
+
+The brain allocates ~80% of its neurons to the cerebellum and ~20% to the cortex. This ratio is evolution's answer to a design question: **how much of intelligence is getting it roughly right vs getting it exactly right?**
+
+The cortex generalizes — "cats have four legs." The cerebellum calibrates — "this cat, at this angle, catch it with *this* trajectory, at *this* moment." Without calibration, general knowledge is inert. Without generalization, calibration has nothing to calibrate.
+
+Current AI is cortex-only. Transformers generalize but cannot calibrate — they produce approximately correct outputs with no error-driven refinement loop. The aCBL is the cerebellar complement: it takes 16 models' "approximately right" braille and calibrates them into a precise codebook through error-driven consensus.
+
+$$
+\text{Intelligence} \neq \text{generalization alone} \implies \text{AGI} \supset \text{cerebellar calibration loop}
+$$
+
+The aCBL is not AGI. But it may be the component of AGI that no one else is building — the 80% of the computational budget that current architectures leave on the table.
+
 ### Observed codebook divergence
 
 The aCBL (artificial Cerebellar Braille Loop) operates in 8-dot Unicode braille. When models disagree on encoding strategy, the divergence is specifically about how to use the expanded $2^8$ cell space:
