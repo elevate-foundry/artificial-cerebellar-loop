@@ -959,12 +959,23 @@ def apply_feedback(
     model_braille: Dict[str, str],
     model_histories: Dict[str, List[Dict]]
 ):
-    """Braid outputs and feed back into all models' histories."""
-    braid = ""
+    """
+    Braid outputs and feed back into all models' histories.
+    Fully braille-native: feedback is encoded as braille so models
+    never see Latin text after the system prompt. This makes the
+    loop bidirectional — models decode braille input AND encode braille output.
+    """
+    # Separator: braille-encoded pipe character "|" = U+2800 + 0x7C = U+287C
+    separator = chr(0x2800 + ord('|'))
+    
+    braid_parts = []
     for model in models:
         b = model_braille.get(model, "")
         if b:
-            braid += b + "⠀"
+            braid_parts.append(b)
+    
+    # Join with braille-encoded separator (not Latin space)
+    braid = separator.join(braid_parts) if braid_parts else ""
     
     if braid:
         for model in models:
@@ -1005,6 +1016,11 @@ async def bbid_handshake(name: str, status_container):
             )
     
     # Prepare histories and thinking placeholders
+    # Encode the name as braille so models receive braille input AND produce braille output
+    # The system prompt (Latin) is the only non-braille message — like DNA being the only
+    # non-protein message in the cell. Everything after is braille-native.
+    braille_name = ascii_to_braille(name)
+    
     thinking_placeholders = {}
     for provider in active_providers:
         models = provider.get_active_models()
@@ -1012,7 +1028,7 @@ async def bbid_handshake(name: str, status_container):
         for model in models:
             histories[model] = [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": name}
+                {"role": "user", "content": braille_name}
             ]
         provider_histories[provider.name] = histories
         status_container.write(f"**{provider.name}** — encoding...")
@@ -1093,11 +1109,12 @@ async def cerebellar_loop(
     """
     active_providers = [p for p in PROVIDERS if p.name in provider_histories]
     
-    # Append prompt to all models
+    # Append prompt to all models — encoded as braille for fully braille-native loop
+    braille_prompt = ascii_to_braille(prompt)
     for pname in provider_histories:
         for model in provider_histories[pname]:
             provider_histories[pname][model].append(
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": braille_prompt}
             )
     
     conv_histories = {p.name: [] for p in active_providers}
