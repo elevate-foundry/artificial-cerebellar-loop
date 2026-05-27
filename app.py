@@ -1143,11 +1143,8 @@ async def bbid_handshake(name: str, status_container):
             )
     
     # Prepare histories and thinking placeholders
-    # Encode the name as braille so models receive braille input AND produce braille output
-    # The system prompt (Latin) is the only non-braille message — like DNA being the only
-    # non-protein message in the cell. Everything after is braille-native.
-    braille_name = ascii_to_braille(name)
-    
+    # The initial user message is plaintext (the name to encode).
+    # After this, all feedback is braille-native (models decode braille input AND encode output).
     thinking_placeholders = {}
     for provider in active_providers:
         models = provider.get_active_models()
@@ -1155,7 +1152,7 @@ async def bbid_handshake(name: str, status_container):
         for model in models:
             histories[model] = [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": braille_name}
+                {"role": "user", "content": name}
             ]
         provider_histories[provider.name] = histories
         status_container.write(f"**{provider.name}** — encoding...")
@@ -1240,12 +1237,12 @@ async def cerebellar_loop(
     """
     active_providers = [p for p in PROVIDERS if p.name in provider_histories]
     
-    # Append prompt to all models — encoded as braille for fully braille-native loop
-    braille_prompt = ascii_to_braille(prompt)
+    # Append prompt to all models as plaintext (it's the instruction).
+    # Feedback between rounds is braille-native (apply_feedback uses braille separators).
     for pname in provider_histories:
         for model in provider_histories[pname]:
             provider_histories[pname][model].append(
-                {"role": "user", "content": braille_prompt}
+                {"role": "user", "content": prompt}
             )
     
     conv_histories = {p.name: [] for p in active_providers}
