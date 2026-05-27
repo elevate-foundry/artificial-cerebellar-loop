@@ -43,7 +43,25 @@ $$
 
 The codebook $D_\ell^{(8)}$ is not simply $D_\ell^{(6)}$ with two extra bits. It is a **different codebook family** — the mapping from cells to characters changes, the mode structure collapses, and the prior $P(\ell)$ shifts because 8-dot braille is predominantly used in computing contexts where language-specific literary conventions are less relevant.
 
-### Why this matters for the aCBL
+### Why 8-dot braille?
+
+The biological cerebellum activates during braille reading — specifically Crus I, lobules IV/V, and VIIIA ([Guell et al., 2019](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6872089/)). It performs **predictive error minimization on tactile sequences**: finger moves → predict next dot pattern → compare actual sensation → adjust motor policy.
+
+The aCBL mirrors this loop, but the choice of **8-dot** over 6-dot is not cosmetic — it is what makes the codebook inference problem non-trivial.
+
+**6-dot is too constrained.** With only $2^6 = 64$ cells, the encoding strategy is largely dictated by the standard. Models must use mode indicators (number sign, capital sign) and contractions. There is little room for strategic divergence — the "right" codebook is mostly predetermined.
+
+**8-dot creates a genuine strategy space.** With $2^8 = 256$ cells, models face real choices:
+
+- Use dots 7–8 for case directly, or use a prefix cell?
+- Pack everything into single cells ($k=1$), or use variable-length n-grams?
+- Follow 6-dot conventions in the 8-dot space, or exploit the full cell?
+
+This mirrors what the cerebellum does in biology. It does not identify letters — it optimizes the **policy** for reading: scan speed, finger pressure, rescan decisions, contraction expansion strategy. The cerebellum operates on the *how*, not the *what*.
+
+In the aCBL, the "how" is the codebook structure itself. The prediction target is not just "what text does this encode?" but "what encoding strategy is being used?" — which codebook family, which n-gram length $k$, which use of the expanded cell space. That is why 8-dot braille is essential: it gives the loop something to converge *on*.
+
+### Observed codebook divergence
 
 The aCBL (artificial Cerebellar Braille Loop) operates in 8-dot Unicode braille. When models disagree on encoding strategy, the divergence is specifically about how to use the expanded $2^8$ cell space:
 
