@@ -63,6 +63,36 @@ This mirrors what the cerebellum does in biology. It does not identify letters �
 
 In the aCBL, the "how" is the codebook structure itself. The prediction target is not just "what text does this encode?" but "what encoding strategy is being used?" — which codebook family, which n-gram length $k$, which use of the expanded cell space. That is why 8-dot braille is essential: it gives the loop something to converge *on*.
 
+### The unified loop: comprehension-guided touch
+
+The Hogri et al. prosthesis and the aCBL each implement half of what the biological cerebellum does during braille reading. Combined, they close the full loop — from finger to meaning and back.
+
+**Layer 1: Physical (Hogri-type).** A prosthetic controller reads a braille surface. It predicts the next dot pattern from motor commands ($\hat{o}_{t+1} = M(s_t, a_t)$), compares the prediction against actual tactile input, and adjusts the scan trajectory — finger speed, pressure, position — to minimize sensory prediction error.
+
+**Layer 2: Symbolic (aCBL).** Multiple models receive the dot stream, each inferring codebook, language, and text. Disagreement between models produces a codebook divergence signal. The braided feedback loop drives models toward consensus on encoding strategy.
+
+**The critical bridge: Layer 2 talks back to Layer 1.** When the symbolic layer detects codebook ambiguity — two clusters of models disagree on whether a cell is a capital indicator or a letter — it sends a signal to the physical layer: *rescan this cell*. The motor policy changes because the *meaning* is uncertain, not just the sensation.
+
+$$
+a_{t+1} = \pi(s_t, o_t, c_t, e_t^{\text{motor}}, e_t^{\text{codebook}})
+$$
+
+where $e_t^{\text{motor}}$ is the tactile prediction error (Hogri) and $e_t^{\text{codebook}}$ is the codebook divergence signal (aCBL).
+
+This is what the biological cerebellum actually does. A skilled braille reader does not scan uniformly — they slow down at ambiguous contractions, rescan unfamiliar words, skip ahead on predictable sequences. The motor policy is shaped by comprehension, and comprehension is shaped by the motor policy. One loop, two layers.
+
+No existing AI system has this property:
+
+| System | Physical loop | Symbolic loop | Cross-layer feedback |
+|---|---|---|---|
+| Vision models | — | ✓ (pixels → text) | — |
+| Robotic touch | ✓ (force → motor) | — | — |
+| Hogri et al. | ✓ (cerebellar chip) | — | — |
+| aCBL | — | ✓ (braille → codebook) | — |
+| **Unified aCBL** | ✓ | ✓ | **✓** |
+
+The unified architecture would be the first system where **touch is guided by understanding and understanding is grounded in touch** — a closed sensorimotor-semantic loop with a shared cerebellar controller at both levels.
+
 ### Observed codebook divergence
 
 The aCBL (artificial Cerebellar Braille Loop) operates in 8-dot Unicode braille. When models disagree on encoding strategy, the divergence is specifically about how to use the expanded $2^8$ cell space:
