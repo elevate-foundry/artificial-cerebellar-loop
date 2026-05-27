@@ -331,6 +331,8 @@ The same cell encodes completely different phonemes/meanings depending on codebo
 
 This is the codebook inference problem in concrete form. The cell `⠜` appearing in text is ambiguous: is it the English contraction "ar" (as in "early" → `e⠜ly`) or the German letter ä (as in "Mädchen" → `M⠜dchen`)? The answer depends entirely on which $D_\ell$ is active.
 
+The collision is not random — it is **etymologically motivated**. The German ä is historically "ae" (the umlaut is a superscript 'e'). So both codebooks compressed a frequent vowel-consonant/vowel-vowel sequence into a single cell: English chose "ar", German chose "ae" → ä. Same cell, same design logic (frequent bigram → single cell), different language history. This is **convergent evolution in codebook design** — and it is exactly why disambiguation requires context, not just pattern matching.
+
 So a universal reader would ask:
 
 $$
