@@ -1,10 +1,14 @@
 # 🧠 Artificial Cerebellar Loop
 
-**A bio-inspired predictive control architecture for braille decoding, multi-model consensus, and codebook inference.**
+**A bio-inspired predictive control architecture for braille decoding, multi-model consensus, codebook inference, and sensorimotor sonification.**
+
+> **[Live Demo](https://artificial-cerebellar-loop.streamlit.app/)** — try the BBID handshake and cerebellar loop with 16 models across 2 providers.
 
 The artificial Cerebellar Braille Loop (aCBL) is an architecture where AI models communicate exclusively in 8-dot braille Unicode, converge through braided feedback, and jointly infer codebook, text, and encoding strategy — without explicit coordination. It draws directly from how the biological cerebellum performs predictive error minimization during tactile sequence processing.
 
-> **Keywords**: artificial cerebellar braille loop, aCBL, cerebellar braille loop, predictive coding, braille decoding, multi-model consensus, codebook inference, cerebellar computation, tactile language processing, braille Unicode, sensorimotor language
+The system now includes a **sensorimotor audio loop**: consensus braille is sonified through Web Audio API, captured by the microphone, reconstructed via frequency analysis, and displayed alongside speech-to-text interpretation — closing the motor→sensory→perception loop that the cerebellum computes biologically.
+
+> **Keywords**: artificial cerebellar braille loop, aCBL, cerebellar braille loop, predictive coding, braille decoding, multi-model consensus, codebook inference, cerebellar computation, tactile language processing, braille Unicode, sensorimotor language, braille sonification, audio braille feedback, BBID, braille binary identity, multi-provider AI consensus
 
 ## What is an Artificial Cerebellar Loop?
 
@@ -66,6 +70,34 @@ It infers the **text**, the **language/codebook**, and the **encoding strategy**
 4. Models adjust based on what others produced — convergence emerges from the feedback
 5. The loop terminates on consensus (≥95% dot agreement) or stable disagreement (plateau detection)
 
+### Sensorimotor Audio Loop
+
+Each round, the consensus braille is sonified through your speakers:
+
+- **8 dots → 8 notes** of a C major pentatonic scale (C4 through E5)
+- Each braille cell plays as a **chord** — dots that are "on" produce their corresponding note
+- **Convergence → consonance**: agreement sounds clean, divergence sounds clustered
+- **Tempo scales with confidence**: higher convergence = faster playback
+
+Simultaneously, the microphone captures the audio and:
+
+1. **Frequency detection** — FFT analysis clusters detected frequencies into the 8 note bins, reconstructing braille dots from audio
+2. **Speech-to-text** — Web Speech API interprets what the tones "sound like" as speech
+
+The gap between the original braille and the mic-reconstructed braille is the **sensorimotor prediction error** — exactly what the cerebellum computes during motor learning.
+
+```
+Models → braille → sonify (speakers) → mic → FFT → reconstruct dots → display
+  ↑                                                                      ↓
+  └──────────── prediction error = original vs reconstructed ────────────┘
+```
+
+### BBID Persistence
+
+- **Per-visitor**: Your name and BBID are saved to browser `localStorage`
+- **Shared registry**: All BBIDs are stored in a server-side ledger, visible to all visitors
+- The registry displays as an expandable panel showing identity, convergence, and timestamp
+
 ### Codebook Divergence Visualization
 
 The system doesn't just show *whether* models agree — it shows *how they disagree*:
@@ -104,13 +136,10 @@ In our AI implementation, the "prediction" is each model's prior about how brail
 
 ```
 ┌─────────────────────────────────────────────┐
-│                 Mammouth (S-tier)            │
-│  8 models · warm colors · premium squad     │
-│  gpt-4.1, claude-4-sonnet, gemini-2.5, ... │
-├─────────────────────────────────────────────┤
-│                OpenRouter (A-tier)           │
-│  8 models · cool colors · value squad       │
-│  gpt-4.1-mini, claude-3-haiku, grok, ...   │
+│           Unified Model Pool (16 active)    │
+│  Ⓜ Mammouth · warm colors · premium squad  │
+│  Ⓞ OpenRouter · cool colors · value squad  │
+│  Models identified by Ⓜ/Ⓞ badges          │
 └─────────────────┬───────────────────────────┘
                   │
           ┌───────▼───────┐
@@ -125,15 +154,20 @@ In our AI implementation, the "prediction" is each model's prior about how brail
     │   2. Braid outputs        │
     │   3. Feed back as context │
     │   4. Measure convergence  │
-    │   5. Repeat or terminate  │
+    │   5. Sonify consensus     │
+    │   6. Mic → reconstruct    │
+    │   7. Repeat or terminate  │
     └─────────────┬─────────────┘
                   │
-          ┌───────▼───────┐
-          │  Convergence  │
-          │  ⬛ consensus │  ≥95% dot agreement
-          │  🌈 disagree  │  plateau detected
-          │  ⏳ ongoing   │  still converging
-          └───────────────┘
+    ┌─────────────▼─────────────┐
+    │  Output                   │
+    │  ⬛ consensus (≥95%)      │
+    │  🌈 disagreement          │
+    │  ⏳ ongoing               │
+    │  🔊 audio (speakers)      │
+    │  🎤 reconstructed (mic)   │
+    │  🪪 BBID (persisted)      │
+    └───────────────────────────┘
 ```
 
 ### Dynamic model selection
@@ -199,6 +233,16 @@ See [`context.md`](context.md) for the full codebook inference theory:
 - **Braille decoding** — codebook ambiguity across languages (UEB, SEB, Deutsche Blindenschrift)
 - **Multi-agent consensus** — emergent agreement without explicit voting protocols
 - **Sensorimotor language** — braille as active sequential cognition, not passive encoding
+- **Sonification** — data-to-sound mapping for real-time convergence monitoring
+- **Auditory feedback loops** — closed-loop motor control through acoustic re-entry
+
+## Test suite
+
+140 unit tests covering braille codec, convergence, plateau detection, feedback braiding, provider colors, overlay rendering, codebook clustering, BBID registry, and command safety:
+
+```bash
+python -m pytest tests/test_unit.py -q
+```
 
 ## License
 
