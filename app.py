@@ -915,6 +915,73 @@ def render_favicon(
         height=0,
     )
 
+def sonify_braille(consensus_braille: str, convergence: float = 0.0, round_num: int = 1):
+    """
+    Sonify consensus braille through the browser's speakers via Web Audio API.
+    8 dots → 8 notes of a pentatonic scale. Convergence → consonance.
+    Each braille cell plays as a chord, cells play sequentially.
+    """
+    import streamlit.components.v1 as components
+    
+    if not consensus_braille:
+        return
+    
+    # Take first 16 cells max to keep it musical (not overwhelming)
+    cells = [ch for ch in consensus_braille[:16] if is_braille_char(ch)]
+    if not cells:
+        return
+    
+    # Convert each cell to its 8-dot pattern as array of 0/1
+    dot_arrays = []
+    for ch in cells:
+        offset = ord(ch) - 0x2800
+        dots = [(offset >> i) & 1 for i in range(8)]
+        dot_arrays.append(dots)
+    
+    # Tempo increases with convergence (faster = more confident)
+    note_duration = max(0.12, 0.4 - convergence * 0.25)
+    # Volume: louder as convergence increases
+    gain = min(0.3, 0.1 + convergence * 0.2)
+    
+    dots_json = str(dot_arrays)
+    
+    components.html(
+        f"""<script>
+        (function() {{
+            try {{
+                var ctx = new (window.AudioContext || window.webkitAudioContext)();
+                // C major pentatonic + upper octave: C4 D4 E4 G4 A4 C5 D5 E5
+                var freqs = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
+                var dots = {dots_json};
+                var dur = {note_duration};
+                var gain = {gain};
+                var t = ctx.currentTime + 0.05;
+                
+                for (var i = 0; i < dots.length; i++) {{
+                    for (var d = 0; d < 8; d++) {{
+                        if (dots[i][d]) {{
+                            var osc = ctx.createOscillator();
+                            var g = ctx.createGain();
+                            osc.type = 'sine';
+                            osc.frequency.value = freqs[d];
+                            g.gain.setValueAtTime(gain, t);
+                            g.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.95);
+                            osc.connect(g);
+                            g.connect(ctx.destination);
+                            osc.start(t);
+                            osc.stop(t + dur);
+                        }}
+                    }}
+                    t += dur;
+                }}
+                // Close context after playback
+                setTimeout(function() {{ ctx.close(); }}, (t - ctx.currentTime) * 1000 + 200);
+            }} catch(e) {{}}
+        }})();
+        </script>""",
+        height=0,
+    )
+
 def render_convergence_chart(histories: Dict[str, List[float]]) -> None:
     """Display convergence for multiple clusters on one chart."""
     import pandas as pd
@@ -1239,9 +1306,10 @@ async def bbid_handshake(name: str, status_container):
     clusters = cluster_codebooks(all_model_braille)
     render_codebook_map(all_model_braille, all_colors, clusters, name=name)
     
-    # Set favicon to BBID consensus with actual colors
+    # Set favicon and sonify BBID consensus
     if combined_bbid:
         render_favicon(combined_bbid, combined_conv, all_model_braille, all_colors)
+        sonify_braille(combined_bbid, combined_conv, round_num=1)
     
     return combined_bbid, {
         **agreement_per_provider,
@@ -1393,11 +1461,12 @@ async def cerebellar_loop(
             combined_overlay = render_braille_overlay(all_model_braille, all_colors)
             st.image(combined_overlay)
             
-            # ─── Dynamic favicon: shows consensus dots filling in with colors ──
+            # ─── Dynamic favicon + sonification ─────────────────────────
             all_valid_braille_fav = [b for b in all_model_braille.values() if b]
             if all_valid_braille_fav:
                 current_consensus = compute_majority_consensus(all_valid_braille_fav)
                 render_favicon(current_consensus, combined_conv, all_model_braille, all_colors)
+                sonify_braille(current_consensus, combined_conv, round_num=iteration)
             
             # ─── Termination ─────────────────────────────────────────────
             if combined_conv >= CONVERGENCE_THRESHOLD:
