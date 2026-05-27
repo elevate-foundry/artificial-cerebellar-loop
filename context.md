@@ -303,6 +303,34 @@ This is the biggest discriminator.
 
 In uncontracted braille, English and German are very close for $a$–$z$. But in contracted braille, cells can mean different things.
 
+#### Shared alphabet (Grade 1)
+
+For the basic Latin letters, both languages use identical dot patterns — the same cell produces the same phoneme:
+
+| Cell | Dots | English | German | Same sound? |
+|---|---|---|---|---|
+| ⠁ | 1 | a | a | ✓ |
+| ⠃ | 1,2 | b | b | ✓ |
+| ⠉ | 1,4 | c | c | ✓ |
+| ⠙ | 1,4,5 | d | d | ✓ |
+| ⠗ | 1,2,3,5 | r | r | ✓ |
+| ⠵ | 1,3,5,6 | z | z | ✓ |
+
+#### Divergent cells (German-specific characters vs English contractions)
+
+The same cell encodes completely different phonemes/meanings depending on codebook:
+
+| Cell | Dots | English (UEB) | German | Conflict |
+|---|---|---|---|---|
+| ⠜ | 3,4,5 | "ar" (contraction) | ä | phoneme collision |
+| ⠪ | 2,4,6 | "of" (contraction) | ö | phoneme collision |
+| ⠳ | 1,2,5,6 | "ou" (contraction) | ü | phoneme collision |
+| ⠮ | 2,3,4,6 | "the" (contraction) | ß | word vs letter |
+| ⠡ | 1,6 | "ch" | "au" | digraph collision |
+| ⠩ | 1,4,6 | "sh" | "ei" | digraph collision |
+
+This is the codebook inference problem in concrete form. The cell `⠜` appearing in text is ambiguous: is it the English contraction "ar" (as in "early" → `e⠜ly`) or the German letter ä (as in "Mädchen" → `M⠜dchen`)? The answer depends entirely on which $D_\ell$ is active.
+
 So a universal reader would ask:
 
 $$
