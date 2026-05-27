@@ -45,7 +45,7 @@ The codebook $D_\ell^{(8)}$ is not simply $D_\ell^{(6)}$ with two extra bits. It
 
 ### Why this matters for the artificial cerebellar loop
 
-The ACL operates in 8-dot Unicode braille. When models disagree on encoding strategy, the divergence is specifically about how to use the expanded $2^8$ cell space:
+The CBL operates in 8-dot Unicode braille. When models disagree on encoding strategy, the divergence is specifically about how to use the expanded $2^8$ cell space:
 
 - Some models use dots 7–8 for case (capital indicator in dot 7)
 - Some prepend a grade-1 indicator (`⠰`) before the name — a 6-dot convention carried into 8-dot
