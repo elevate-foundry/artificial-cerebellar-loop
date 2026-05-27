@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import os
+import json
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 import time
 import requests as sync_requests
@@ -1405,6 +1407,82 @@ async def cerebellar_loop(
     
     return all_rounds, conv_histories, outcome
 
+# ─── BBID Registry ────────────────────────────────────────────────────────────
+
+REGISTRY_FILE = os.path.join(os.path.dirname(__file__), "bbid_registry.json")
+
+@st.cache_resource
+def get_bbid_registry() -> Dict:
+    """Shared in-memory BBID registry, persisted to disk."""
+    if os.path.exists(REGISTRY_FILE):
+        try:
+            with open(REGISTRY_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {}
+
+def save_bbid_to_registry(name: str, bbid: str, convergence: float, providers: Dict[str, str]):
+    """Register a BBID in the shared ledger."""
+    registry = get_bbid_registry()
+    registry[name] = {
+        "bbid": bbid,
+        "convergence": convergence,
+        "providers": providers,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        with open(REGISTRY_FILE, "w") as f:
+            json.dump(registry, f, indent=2, ensure_ascii=False)
+    except IOError:
+        pass
+
+def save_bbid_to_localstorage(name: str, bbid: str):
+    """Persist BBID to browser localStorage via JS injection."""
+    import streamlit.components.v1 as components
+    escaped_name = name.replace("'", "\\'")
+    escaped_bbid = bbid.replace("'", "\\'")
+    components.html(
+        f"""<script>
+        (function() {{
+            localStorage.setItem('acbl_name', '{escaped_name}');
+            localStorage.setItem('acbl_bbid', '{escaped_bbid}');
+        }})();
+        </script>""",
+        height=0,
+    )
+
+def render_bbid_registry():
+    """Display the shared BBID ledger."""
+    registry = get_bbid_registry()
+    if not registry:
+        return
+    
+    with st.expander(f"🪪 BBID Registry ({len(registry)} identities)", expanded=False):
+        entries = sorted(registry.items(), key=lambda x: x[1].get("timestamp", ""), reverse=True)
+        for name, data in entries:
+            bbid = data.get("bbid", "")
+            conv = data.get("convergence", 0)
+            ts = data.get("timestamp", "")
+            providers = data.get("providers", {})
+            
+            # Show first few braille cells as visual badge
+            badge = bbid[:6] if bbid else "?"
+            provider_badges = " ".join(
+                f'{"Ⓜ" if p == "Mammouth" else "Ⓞ"}{v[:6]}'
+                for p, v in providers.items()
+            )
+            
+            st.markdown(
+                f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                f'padding:4px 0;border-bottom:1px solid rgba(100,100,100,0.15)">'
+                f'<span><strong>{name}</strong> '
+                f'<code style="letter-spacing:2px">{badge}</code></span>'
+                f'<span style="font-size:0.75em;opacity:0.5">{conv:.0%} · {ts[:10]}</span>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
 # ─── Main App ───────────────────────────────────────────────────────────────────
 
 def outcome_icon(conv: float) -> str:
@@ -1428,6 +1506,9 @@ def main():
         if key not in st.session_state:
             st.session_state[key] = default
     
+    # ─── Show BBID Registry to all visitors ─────────────────────────────
+    render_bbid_registry()
+    
     # ─── Phase 1: BBID Handshake ─────────────────────────────────────────
     if not st.session_state.bbid:
         st.markdown("### What's your name?")
@@ -1450,6 +1531,13 @@ def main():
                 st.session_state.provider_histories = provider_histories
                 st.session_state.bbid_per_provider = bbid_per_provider
                 st.session_state.bbid_model_braille = model_braille
+                
+                # Persist to shared registry + browser localStorage
+                combined_conv = agreements.get("combined", 0)
+                provider_bbids = {p: b for p, b in (bbid_per_provider or {}).items()}
+                save_bbid_to_registry(name, combined_bbid, combined_conv, provider_bbids)
+                save_bbid_to_localstorage(name, combined_bbid)
+                
                 st.rerun()
             else:
                 st.error("No models responded. Check API keys.")
