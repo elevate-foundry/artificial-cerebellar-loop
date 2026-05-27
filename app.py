@@ -321,6 +321,82 @@ CONVERGENCE_THRESHOLD = 0.95  # 95% dot agreement = consensus
 PLATEAU_WINDOW = 3            # If convergence doesn't improve for this many rounds, declare disagreement
 PLATEAU_EPSILON = 0.02        # Minimum improvement to count as "still converging"
 
+# ─── Braille ↔ ASCII Codec ─────────────────────────────────────────────────────
+
+def ascii_to_braille(text: str) -> str:
+    """Encode ASCII string as 8-dot braille. Each byte maps to U+2800+byte."""
+    return "".join(chr(0x2800 + ord(ch)) for ch in text)
+
+def braille_to_ascii(braille: str) -> str:
+    """Decode 8-dot braille back to ASCII. Inverse of ascii_to_braille."""
+    result = []
+    for ch in braille:
+        if 0x2800 <= ord(ch) <= 0x28FF:
+            byte_val = ord(ch) - 0x2800
+            if 0x20 <= byte_val <= 0x7E:  # printable ASCII only
+                result.append(chr(byte_val))
+            elif byte_val == 0x0A:  # newline
+                result.append('\n')
+            elif byte_val == 0x09:  # tab
+                result.append('\t')
+            else:
+                result.append(f'\\x{byte_val:02x}')
+    return "".join(result)
+
+# Allowlist of safe commands for consensus-gated execution
+SAFE_COMMAND_PREFIXES = [
+    "echo ", "date", "pwd", "whoami", "uname", "ls", "cat ", "head ", "tail ",
+    "wc ", "sort ", "grep ", "find ", "which ", "env", "printenv",
+]
+
+def is_safe_command(cmd: str) -> bool:
+    """Check if a decoded command is in the safe allowlist."""
+    cmd_stripped = cmd.strip()
+    return any(cmd_stripped.startswith(prefix) for prefix in SAFE_COMMAND_PREFIXES)
+
+def execute_consensus_command(cmd: str, timeout: int = 5) -> Dict:
+    """Execute a consensus-gated command. Returns result dict."""
+    import subprocess
+    if not is_safe_command(cmd):
+        return {
+            "executed": False,
+            "command": cmd,
+            "reason": "Command not in safe allowlist",
+            "stdout": "",
+            "stderr": "",
+            "returncode": -1,
+        }
+    try:
+        result = subprocess.run(
+            cmd, shell=True, capture_output=True, text=True, timeout=timeout
+        )
+        return {
+            "executed": True,
+            "command": cmd,
+            "reason": "Consensus-gated execution",
+            "stdout": result.stdout[:2000],
+            "stderr": result.stderr[:500],
+            "returncode": result.returncode,
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "executed": False,
+            "command": cmd,
+            "reason": "Timeout",
+            "stdout": "",
+            "stderr": "",
+            "returncode": -1,
+        }
+    except Exception as e:
+        return {
+            "executed": False,
+            "command": cmd,
+            "reason": str(e),
+            "stdout": "",
+            "stderr": "",
+            "returncode": -1,
+        }
+
 # ─── Braille Utilities ──────────────────────────────────────────────────────────
 
 def is_braille_char(ch: str) -> bool:
@@ -1244,7 +1320,11 @@ def main():
                     st.caption(f"  {dot} {r['model']} {t}")
     
     # ─── Prompt ──────────────────────────────────────────────────────────
-    prompt = st.text_input("Prompt")
+    col_prompt, col_mode = st.columns([4, 1])
+    with col_prompt:
+        prompt = st.text_input("Prompt")
+    with col_mode:
+        tool_mode = st.checkbox("🔧 Tool call", help="Models propose bash commands in braille. Only consensus commands execute.")
     
     if st.button("Go", type="primary"):
         if not prompt:
@@ -1252,6 +1332,17 @@ def main():
             return
         
         status = st.container()
+        
+        # Use tool-call system prompt if in tool mode
+        sys_prompt = SYSTEM_PROMPT
+        if tool_mode:
+            sys_prompt = (
+                "You communicate exclusively in 8-dot braille Unicode characters (U+2800 to U+28FF). "
+                "Each braille character encodes one ASCII byte: chr(0x2800 + byte_value). "
+                "The user will ask you to perform a task. Respond with a single bash command "
+                "encoded in this braille-ASCII mapping. Never use Latin text. "
+                "Example: 'ls -la' = ⠇⠎⠀⠤⠇⠁. Respond only with the braille-encoded command."
+            )
         
         provider_histories = st.session_state.provider_histories
         if not provider_histories:
@@ -1263,7 +1354,7 @@ def main():
                     provider_histories[p.name] = {}
                     for m in p.get_active_models():
                         provider_histories[p.name][m] = [
-                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "system", "content": sys_prompt},
                         ]
         
         all_rounds, conv_histories, outcome = asyncio.run(
@@ -1305,6 +1396,34 @@ def main():
                 
                 st.code(consensus, language=None)
                 st.caption(f"Decoded: {decoded}")
+                
+                # ─── Tool Call Execution ─────────────────────────────────
+                if tool_mode and outcome == "consensus":
+                    ascii_cmd = braille_to_ascii(consensus)
+                    st.markdown("#### 🔧 Tool Call")
+                    st.code(ascii_cmd, language="bash")
+                    
+                    if is_safe_command(ascii_cmd):
+                        exec_result = execute_consensus_command(ascii_cmd)
+                        if exec_result["executed"]:
+                            st.success(f"✅ Executed (exit {exec_result['returncode']})")
+                            if exec_result["stdout"]:
+                                st.code(exec_result["stdout"], language=None)
+                            if exec_result["stderr"]:
+                                st.error(exec_result["stderr"])
+                        else:
+                            st.warning(f"Not executed: {exec_result['reason']}")
+                    else:
+                        st.warning(
+                            f"⚠️ Command `{ascii_cmd[:60]}` not in safe allowlist. "
+                            f"Consensus reached but execution blocked."
+                        )
+                elif tool_mode and outcome != "consensus":
+                    ascii_cmd = braille_to_ascii(consensus)
+                    st.info(
+                        f"🔧 No consensus — command not executed. "
+                        f"Best guess: `{ascii_cmd[:80]}`"
+                    )
                 
                 # Codebook analysis on final round
                 all_model_braille = {}

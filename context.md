@@ -137,6 +137,48 @@ $$
 
 The aCBL addresses the 80% of the computational budget that current architectures leave on the table.
 
+### Braille tool calls: motor planning through consensus
+
+8-dot braille has exactly $2^8 = 256$ codepoints (U+2800–U+28FF). ASCII has exactly 256 values (0x00–0xFF). This is not a coincidence of the formalism — it means any byte sequence can be encoded in braille:
+
+$$
+\text{encode}(b) = \text{chr}(0\text{x}2800 + b) \quad \forall\, b \in [0, 255]
+$$
+
+A bash command is a byte string. Therefore:
+
+$$
+\texttt{ls -la} \to ⠇⠎⠀⠤⠇⠁
+$$
+
+This transforms the aCBL from a system that converges on *encoding strategy* into one that converges on **action strategy** — which is literally what the biological cerebellum does. The cerebellum's output is motor commands, not representations. The superior cerebellar peduncle carries corrected motor plans to the cortex.
+
+In the tool-calling aCBL:
+
+1. 16 models each propose a braille-encoded command
+2. K-means clusters the proposals by dot-level similarity
+3. Only commands with **multi-model consensus** execute
+4. The error signal becomes: did the command succeed? Did its output match predictions?
+
+This is consensus-gated execution. No single model can trigger a destructive action — you need agreement across independent models (potentially across providers) before anything runs. The safety properties emerge from the architecture, not from alignment training.
+
+The motor policy update becomes:
+
+$$
+a_{t+1} = \pi(s_t, o_t, c_t, e_t^{\text{exec}})
+$$
+
+where $e_t^{\text{exec}}$ is the execution error — the difference between predicted command output and actual command output. This closes the full sensorimotor loop: models propose actions in braille, the system executes the consensus action, the result feeds back as the next observation, and models update their proposals.
+
+| Biological cerebellum | aCBL tool calling |
+|---|---|
+| Motor plan (from cortex) | Braille-encoded command (from models) |
+| Cerebellar calibration | K-means consensus gating |
+| Motor execution | Bash/tool execution |
+| Sensory reafference | Command output (stdout/stderr) |
+| Climbing fiber error | Predicted vs actual output divergence |
+| Updated motor plan | Next round's command proposals |
+
 ### Observed codebook divergence
 
 The aCBL (artificial Cerebellar Braille Loop) operates in 8-dot Unicode braille. When models disagree on encoding strategy, the divergence is specifically about how to use the expanded $2^8$ cell space:

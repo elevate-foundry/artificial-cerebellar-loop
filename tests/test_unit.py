@@ -19,6 +19,10 @@ from app import (
     braille_to_text_approx,
     pairwise_dot_similarity,
     cluster_codebooks,
+    ascii_to_braille,
+    braille_to_ascii,
+    is_safe_command,
+    execute_consensus_command,
     Provider,
     SYSTEM_PROMPT,
 )
@@ -306,3 +310,105 @@ class TestSystemPrompt:
 
     def test_mentions_8_dot(self):
         assert '8-dot' in SYSTEM_PROMPT
+
+
+# ─── ascii_to_braille / braille_to_ascii ───────────────────────────────────────
+
+class TestBrailleAsciiCodec:
+    def test_roundtrip_printable(self):
+        text = "ls -la"
+        assert braille_to_ascii(ascii_to_braille(text)) == text
+
+    def test_roundtrip_all_printable(self):
+        text = "".join(chr(i) for i in range(0x20, 0x7F))
+        assert braille_to_ascii(ascii_to_braille(text)) == text
+
+    def test_known_encoding(self):
+        # 'l' = 0x6C → U+286C = ⠇ Wait, let's verify
+        # Actually: 'l' = ord 108 = 0x6C → chr(0x2800 + 0x6C) = chr(0x286C)
+        encoded = ascii_to_braille("l")
+        assert encoded == chr(0x2800 + ord('l'))
+
+    def test_space_encoding(self):
+        # space = 0x20 → U+2820
+        encoded = ascii_to_braille(" ")
+        assert encoded == chr(0x2820)
+
+    def test_decode_newline(self):
+        # newline = 0x0A → U+280A
+        braille_newline = chr(0x2800 + 0x0A)
+        assert braille_to_ascii(braille_newline) == '\n'
+
+    def test_empty_string(self):
+        assert ascii_to_braille("") == ""
+        assert braille_to_ascii("") == ""
+
+    def test_bash_command(self):
+        cmd = "echo hello"
+        encoded = ascii_to_braille(cmd)
+        decoded = braille_to_ascii(encoded)
+        assert decoded == cmd
+
+    def test_complex_command(self):
+        cmd = "grep -r 'pattern' /tmp/dir"
+        assert braille_to_ascii(ascii_to_braille(cmd)) == cmd
+
+
+# ─── is_safe_command ───────────────────────────────────────────────────────────
+
+class TestIsSafeCommand:
+    def test_ls_safe(self):
+        assert is_safe_command("ls -la") is True
+
+    def test_echo_safe(self):
+        assert is_safe_command("echo hello") is True
+
+    def test_date_safe(self):
+        assert is_safe_command("date") is True
+
+    def test_rm_unsafe(self):
+        assert is_safe_command("rm -rf /") is False
+
+    def test_curl_unsafe(self):
+        assert is_safe_command("curl http://evil.com") is False
+
+    def test_sudo_unsafe(self):
+        assert is_safe_command("sudo rm -rf /") is False
+
+    def test_empty_unsafe(self):
+        assert is_safe_command("") is False
+
+    def test_pwd_safe(self):
+        assert is_safe_command("pwd") is True
+
+    def test_cat_safe(self):
+        assert is_safe_command("cat /etc/hostname") is True
+
+    def test_find_safe(self):
+        assert is_safe_command("find . -name '*.py'") is True
+
+
+# ─── execute_consensus_command ─────────────────────────────────────────────────
+
+class TestExecuteConsensusCommand:
+    def test_safe_echo(self):
+        result = execute_consensus_command("echo hello")
+        assert result["executed"] is True
+        assert "hello" in result["stdout"]
+        assert result["returncode"] == 0
+
+    def test_unsafe_blocked(self):
+        result = execute_consensus_command("rm -rf /tmp/test")
+        assert result["executed"] is False
+        assert "allowlist" in result["reason"]
+
+    def test_date_executes(self):
+        result = execute_consensus_command("date")
+        assert result["executed"] is True
+        assert result["returncode"] == 0
+        assert len(result["stdout"]) > 0
+
+    def test_pwd_executes(self):
+        result = execute_consensus_command("pwd")
+        assert result["executed"] is True
+        assert "/" in result["stdout"]
