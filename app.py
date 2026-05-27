@@ -982,6 +982,157 @@ def sonify_braille(consensus_braille: str, convergence: float = 0.0, round_num: 
         height=0,
     )
 
+def render_audio_listener(round_num: int = 1):
+    """
+    Listen via microphone, detect frequencies (k-means to 8 note bins),
+    reconstruct braille dots, and run speech-to-text.
+    Displays: reconstructed braille + speech transcript side by side.
+    The gap between original and reconstructed is the sensorimotor prediction error.
+    """
+    import streamlit.components.v1 as components
+    
+    components.html(
+        f"""
+        <div id="audio-feedback-{round_num}" style="font-family:monospace;font-size:13px;padding:4px;">
+            <div style="display:flex;gap:16px;">
+                <div>
+                    <div style="opacity:0.5;font-size:11px;">🎤 Reconstructed braille (freq→dots)</div>
+                    <div id="recon-braille-{round_num}" style="font-size:20px;letter-spacing:2px;min-height:28px;">⠀</div>
+                    <div id="recon-decoded-{round_num}" style="opacity:0.5;font-size:11px;"></div>
+                </div>
+                <div>
+                    <div style="opacity:0.5;font-size:11px;">💬 Speech-to-text hears</div>
+                    <div id="speech-text-{round_num}" style="font-size:14px;font-style:italic;min-height:28px;color:#888;">listening...</div>
+                </div>
+            </div>
+        </div>
+        <script>
+        (function() {{
+            var RN = {round_num};
+            var FREQS = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
+            var TOLERANCE = 25; // Hz tolerance for frequency bin matching
+            var reconEl = document.getElementById('recon-braille-' + RN);
+            var decodedEl = document.getElementById('recon-decoded-' + RN);
+            var speechEl = document.getElementById('speech-text-' + RN);
+            
+            // ─── Frequency detection via mic ───────────────────────────
+            function startFreqDetection() {{
+                navigator.mediaDevices.getUserMedia({{ audio: true }}).then(function(stream) {{
+                    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    var src = ctx.createMediaStreamSource(stream);
+                    var analyser = ctx.createAnalyser();
+                    analyser.fftSize = 4096;
+                    src.connect(analyser);
+                    
+                    var bufLen = analyser.frequencyBinCount;
+                    var dataArr = new Float32Array(bufLen);
+                    var freqRes = ctx.sampleRate / analyser.fftSize;
+                    
+                    var cells = [];
+                    var currentDots = [0,0,0,0,0,0,0,0];
+                    var frameCount = 0;
+                    var cellFrames = 8; // frames per cell detection window
+                    
+                    function detect() {{
+                        analyser.getFloatFrequencyData(dataArr);
+                        
+                        // Find which of our 8 target frequencies have energy above threshold
+                        for (var d = 0; d < 8; d++) {{
+                            var targetBin = Math.round(FREQS[d] / freqRes);
+                            var maxDb = -Infinity;
+                            // Check bins around the target (±tolerance)
+                            var binTol = Math.ceil(TOLERANCE / freqRes);
+                            for (var b = Math.max(0, targetBin - binTol); b <= Math.min(bufLen-1, targetBin + binTol); b++) {{
+                                if (dataArr[b] > maxDb) maxDb = dataArr[b];
+                            }}
+                            // Threshold: if energy > -50dB, consider dot present
+                            if (maxDb > -50) {{
+                                currentDots[d] = 1;
+                            }}
+                        }}
+                        
+                        frameCount++;
+                        if (frameCount >= cellFrames) {{
+                            // Commit this cell
+                            var offset = 0;
+                            for (var d = 0; d < 8; d++) {{
+                                if (currentDots[d]) offset |= (1 << d);
+                            }}
+                            if (offset > 0) {{
+                                cells.push(String.fromCharCode(0x2800 + offset));
+                            }}
+                            currentDots = [0,0,0,0,0,0,0,0];
+                            frameCount = 0;
+                            
+                            // Update display
+                            if (cells.length > 0) {{
+                                reconEl.textContent = cells.join('');
+                            }}
+                        }}
+                        
+                        if (cells.length < 20) {{
+                            requestAnimationFrame(detect);
+                        }} else {{
+                            // Done — clean up
+                            stream.getTracks().forEach(function(t) {{ t.stop(); }});
+                            ctx.close();
+                        }}
+                    }}
+                    
+                    detect();
+                }}).catch(function(e) {{
+                    reconEl.textContent = '(mic denied)';
+                }});
+            }}
+            
+            // ─── Speech-to-text via Web Speech API ─────────────────────
+            function startSpeechRecognition() {{
+                try {{
+                    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    if (!SR) {{
+                        speechEl.textContent = '(not supported)';
+                        return;
+                    }}
+                    var rec = new SR();
+                    rec.continuous = true;
+                    rec.interimResults = true;
+                    rec.lang = 'en-US';
+                    
+                    rec.onresult = function(e) {{
+                        var transcript = '';
+                        for (var i = 0; i < e.results.length; i++) {{
+                            transcript += e.results[i][0].transcript;
+                        }}
+                        speechEl.textContent = transcript || '(silence)';
+                    }};
+                    
+                    rec.onerror = function(e) {{
+                        speechEl.textContent = '(' + e.error + ')';
+                    }};
+                    
+                    rec.onend = function() {{
+                        if (!speechEl.textContent || speechEl.textContent === 'listening...') {{
+                            speechEl.textContent = '(silence — tones not speech)';
+                        }}
+                    }};
+                    
+                    rec.start();
+                    // Stop after 10 seconds
+                    setTimeout(function() {{ try {{ rec.stop(); }} catch(e) {{}} }}, 10000);
+                }} catch(e) {{
+                    speechEl.textContent = '(not available)';
+                }}
+            }}
+            
+            // Start both listeners
+            startFreqDetection();
+            startSpeechRecognition();
+        }})();
+        </script>
+        """,
+        height=80,
+    )
+
 def render_convergence_chart(histories: Dict[str, List[float]]) -> None:
     """Display convergence for multiple clusters on one chart."""
     import pandas as pd
@@ -1306,10 +1457,11 @@ async def bbid_handshake(name: str, status_container):
     clusters = cluster_codebooks(all_model_braille)
     render_codebook_map(all_model_braille, all_colors, clusters, name=name)
     
-    # Set favicon and sonify BBID consensus
+    # Set favicon, sonify, and listen back
     if combined_bbid:
         render_favicon(combined_bbid, combined_conv, all_model_braille, all_colors)
         sonify_braille(combined_bbid, combined_conv, round_num=1)
+        render_audio_listener(round_num=0)
     
     return combined_bbid, {
         **agreement_per_provider,
@@ -1461,12 +1613,13 @@ async def cerebellar_loop(
             combined_overlay = render_braille_overlay(all_model_braille, all_colors)
             st.image(combined_overlay)
             
-            # ─── Dynamic favicon + sonification ─────────────────────────
+            # ─── Dynamic favicon + sonification + mic listener ──────────
             all_valid_braille_fav = [b for b in all_model_braille.values() if b]
             if all_valid_braille_fav:
                 current_consensus = compute_majority_consensus(all_valid_braille_fav)
                 render_favicon(current_consensus, combined_conv, all_model_braille, all_colors)
                 sonify_braille(current_consensus, combined_conv, round_num=iteration)
+                render_audio_listener(round_num=iteration)
             
             # ─── Termination ─────────────────────────────────────────────
             if combined_conv >= CONVERGENCE_THRESHOLD:
