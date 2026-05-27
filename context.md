@@ -53,6 +53,32 @@ The aCBL (artificial Cerebellar Braille Loop) operates in 8-dot Unicode braille.
 
 These are distinct codebooks within the 8-dot family. The codebook clustering in the BBID handshake detects exactly this: which models chose which strategy for the expanded cell space.
 
+### Beyond $2^8$: effective codebook size
+
+A single 8-dot braille cell has exactly $2^8 = 256$ possible patterns (Unicode U+2800–U+28FF). But the **effective codebook** operates over sequences, not individual cells.
+
+A model that prepends `⠐` (dots 5) before `⠗⠽⠁⠝` is not using a 256-symbol alphabet — it is using a codebook over **cell n-grams**:
+
+$$
+\mathcal{C}_k = \mathbb{B}^{8k} \quad \Rightarrow \quad |\mathcal{C}_k| = 2^{8k}
+$$
+
+| n-gram length $k$ | Effective codebook size | Example |
+|---|---|---|
+| 1 | $2^8 = 256$ | Single cell: `⠗` → r |
+| 2 | $2^{16} = 65{,}536$ | Modifier + cell: `⠐⠗` → capital R |
+| 3 | $2^{24} \approx 16.7\text{M}$ | Indicator + digraph: `⠼⠁⠃` → 1b |
+
+In practice, braille codebooks use **variable-length** units — some cells are content, some are modifiers that change the interpretation of subsequent cells. The effective codebook is not $\mathcal{C}_k$ for fixed $k$, but a prefix-free code:
+
+$$
+\mathcal{C}^* = \bigcup_{k=1}^{K} \mathcal{C}_k
+$$
+
+This is exactly where model disagreement arises. Two models may agree on which cell maps to which letter ($k=1$), but disagree on whether a capital indicator should be a separate prefix cell ($k=2$) or encoded in dots 7–8 of the letter cell itself ($k=1$ with a larger per-cell alphabet). Both are valid 8-dot codebooks, but they have different effective sizes and different $k$ distributions.
+
+The aCBL's codebook clustering captures this: models in the same cluster share not just the same cell-to-character mapping, but the same **n-gram structure** — the same $k$.
+
 ### The interpretation function
 
 For both cell sizes, the interpretation is a function:
