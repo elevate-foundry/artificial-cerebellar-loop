@@ -261,3 +261,18 @@ If you use this work, please cite:
   url={https://github.com/elevate-foundry/artificial-cerebellar-loop}
 }
 ```
+
+<!-- ELEVATE:BEGIN (auto-generated section; edits here are overwritten) -->
+## About
+
+| | |
+| --- | --- |
+| **Description** | Artificial Cerebellar Loop — bio-inspired predictive control architecture for braille decoding, multi-model consensus, and codebook inference |
+| **Language** | Python |
+| **Commits** | 34 |
+| **Created** | 2026-05-27 |
+| **Last push** | 2026-05-27 |
+| **Site** | https://elevate-foundry.github.io/artificial-cerebellar-loop/ |
+
+Part of [**elevate-foundry**](https://github.com/elevate-foundry) · [repository](https://github.com/elevate-foundry/artificial-cerebellar-loop)
+<!-- ELEVATE:END -->
